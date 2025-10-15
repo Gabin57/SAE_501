@@ -16,3 +16,14 @@ subprojects {
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
+
+plugins {
+  id "org.sonarqube" version "6.3.1.5724"
+}
+
+sonar {
+  properties {
+    property "sonar.projectKey", "Gabin57_SAE_501"
+    property "sonar.organization", "gabin57"
+  }
+}

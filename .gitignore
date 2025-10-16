@@ -1,0 +1,43 @@
+# Fichiers et dossiers système
+.DS_Store
+Thumbs.db
+
+# Dossiers de build Flutter
+/coverage/
+/build/
+/.dart_tool/
+/.packages
+.packages
+.pub-cache/
+.pub/
+
+# Fichiers de configuration locaux
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.iml
+.idea/
+.vscode/
+
+# Fichiers de débogage/profiling
+*.log
+*.swp
+*.swo
+*~
+
+# Dossier temporaire de SonarQube/SonarCloud
+.sonar/
+.scannerwork/
+
+# Fichiers d'environnement
+.env
+.env.*
+!.env.example
+
+# Fichiers générés
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+*.gr.dart
+/generated_plugin_registrant.dart

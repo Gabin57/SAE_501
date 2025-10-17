@@ -29,45 +29,30 @@ void main() {
       final nouveauCompte = await DAO.create('COMPTES', testUser);
       print('Nouveau compte créé: ${nouveauCompte.toString()}');
       expect(nouveauCompte, isA<Map>());
-      
-      // Vérifier que la création a réussi
-      expect(nouveauCompte['status'], equals('success'));
-      
-      // Récupérer tous les comptes pour trouver le nouveau
-      final tousLesComptes = await DAO.getAll('COMPTES');
-      final compteCree = tousLesComptes.firstWhere(
-        (c) => c['identifiant'] == testUser['identifiant'],
-        orElse: () => null,
-      );
-      
-      expect(compteCree, isNotNull, reason: 'Le compte devrait être présent dans la liste des comptes');
-      
-      final id = compteCree['num'];
+      expect(nouveauCompte, contains('id'));
+
+      final id = nouveauCompte['id'];
       
       // Test de récupération par ID
       final compteRecupere = await DAO.getById('COMPTES', id);
       print('Compte récupéré: ${compteRecupere.toString()}');
-      
-      expect(compteRecupere, isNotNull, reason: 'Le compte devrait être récupérable par son ID');
-      expect(compteRecupere?['identifiant'], testUser['identifiant']);
-      expect(compteRecupere?['email'], testUser['email']);
+      expect(compteRecupere, isNotNull);
+      expect(compteRecupere['identifiant'], testUser['identifiant']);
+      expect(compteRecupere['email'], testUser['email']);
 
       // Test de mise à jour
-      final nouvelEmail = 'update${DateTime.now().millisecondsSinceEpoch}@example.com';
       final donneesMiseAJour = {
-        'num': id,  // Utiliser 'num' comme identifiant pour la table COMPTES
-        'email': nouvelEmail
+        'id': id,
+        'email': 'update${DateTime.now().millisecondsSinceEpoch}@example.com'
       };
       
-      print('Données de mise à jour: $donneesMiseAJour');
       final miseAJourReussie = await DAO.update('COMPTES', donneesMiseAJour);
       print('Mise à jour réussie: $miseAJourReussie');
-      expect(miseAJourReussie, isTrue, reason: 'La mise à jour devrait réussir');
+      expect(miseAJourReussie, isTrue);
 
       // Vérification de la mise à jour
       final compteMiseAJour = await DAO.getById('COMPTES', id);
-      expect(compteMiseAJour, isNotNull, reason: 'Le compte devrait toujours exister après la mise à jour');
-      expect(compteMiseAJour?['email'], nouvelEmail, reason: 'L\'email devrait être mis à jour');
+      expect(compteMiseAJour['email'], donneesMiseAJour['email']);
 
       // Test de suppression
       final suppressionReussie = await DAO.delete('COMPTES', id);

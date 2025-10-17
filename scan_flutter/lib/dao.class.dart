@@ -61,54 +61,20 @@ class DAO {
   // Méthode générique pour mettre à jour un élément
   static Future<bool> update(String table, Map<String, dynamic> data) async {
     try {
-      // Pour la table COMPTES, on utilise 'num' comme identifiant
-      final idField = table == 'COMPTES' ? 'num' : 'id';
-      
-      if (!data.containsKey(idField)) {
-        throw Exception('Le champ d\'identification ($idField) est requis pour la mise à jour');
-      }
-      
-      final id = data[idField];
-      
-      // Créer une copie des données pour la mise à jour
-      final updateData = Map<String, dynamic>.from(data);
-      
-      // Pour la table COMPTES, on utilise 'num' comme identifiant
-      if (table == 'COMPTES') {
-        // On s'assure que 'num' est présent dans les données
-        if (!updateData.containsKey('num')) {
-          updateData['num'] = id;
-        }
-        
-        // On ajoute un ID factice pour satisfaire l'API
-        updateData['id'] = id;
-      }
-      
-      // Construire l'URL avec le paramètre d'action
-      final url = '$baseUrl/$table?action=update';
-      
-      print('PUT $url');
-      print('Data: $updateData');
-      
       final response = await http.put(
-        Uri.parse(url),
+        Uri.parse('$baseUrl/$table'),
         headers: headers,
-        body: jsonEncode(updateData),
+        body: jsonEncode(data),
       );
-      
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         return result['status'] == 'success';
       } else {
-        throw Exception('Échec de la mise à jour: ${response.statusCode} - ${response.body}');
+        throw Exception('Échec de la mise à jour: ${response.statusCode}');
       }
     } catch (e) {
-      final error = 'Erreur lors de la mise à jour: $e';
-      print(error);
-      throw Exception(error);
+      throw Exception('Erreur lors de la connexion à l\'API: $e');
     }
   }
 
@@ -132,42 +98,22 @@ class DAO {
   }
 
   // Méthode générique pour récupérer un élément par son ID
-  static Future<Map<String, dynamic>?> getById(String table, dynamic id) async {
+  static Future<dynamic> getById(String table, dynamic id) async {
     try {
-      // Pour la table COMPTES, on utilise 'num' comme identifiant
-      final idField = table == 'COMPTES' ? 'num' : 'id';
-
-      // D'abord, on récupère tous les éléments
-      final allItems = await getAll(table);
-
-      // Puis on filtre localement pour trouver l'élément avec l'ID correspondant
-      final item = allItems.firstWhere(
-        (item) => item[idField].toString() == id.toString(),
-        orElse: () => null,
+      final response = await http.get(
+        Uri.parse('$baseUrl/$table/$id'),
+        headers: headers,
       );
-
-      if (item == null) {
-        print('Aucun élément trouvé avec l\'ID $id dans la table $table');
-        return null;
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else if (response.statusCode == 404) {
+        return null; // Non trouvé
       } else {
-        print('Élément trouvé: $item');
-        
-        // Pour la table COMPTES, s'assurer que l'ID est inclus dans la réponse
-        if (table == 'COMPTES' && idField == 'num' && item['id'] == null) {
-          // Si l'ID n'est pas dans l'élément, on l'ajoute en tant que clé secondaire
-          final itemWithId = Map<String, dynamic>.from(item);
-          // On utilise l'index dans la liste + 1 comme ID temporaire si nécessaire
-          // C'est une solution de contournement si l'API ne renvoie pas l'ID
-          itemWithId['id'] = allItems.indexOf(item) + 1;
-          return itemWithId;
-        }
-        
-        return item as Map<String, dynamic>;
+        throw Exception('Échec de la récupération: ${response.statusCode}');
       }
     } catch (e) {
-      final error = 'Erreur lors de la récupération de l\'élément: $e';
-      print(error);
-      throw Exception(error);
+      throw Exception('Erreur lors de la connexion à l\'API: $e');
     }
   }
 

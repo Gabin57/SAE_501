@@ -11,7 +11,7 @@ Ce dossier contient toute la documentation relative au projet SAE 501. Il est or
 
 - **📂 Maquettes/** - Maquettes de l'application
 
-- **📂 Rapports/** - Différents rapports du projet
+- **📂 Rapports/** - Dossier contenant les rapports chaque semaine
 
 ## 📄 Fichiers principaux
 

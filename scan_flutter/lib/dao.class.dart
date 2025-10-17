@@ -10,10 +10,17 @@ class DAO {
   // Pour une API en production :
   // static const String baseUrl = 'https://votre-domaine.com/api';
 
-  // Endpoints
-  static const String comptesEndpoint = '$baseUrl/COMPTES';
-  static const String panneauxEndpoint = '$baseUrl/PANNEAUX';
-  static const String liaisonsPanneauxEndpoint = '$baseUrl/LIAISONS_PANNEAUX';
+  // Client HTTP personnalisable pour les tests
+  static http.Client _httpClient = http.Client();
+
+  // Getter et setter pour le client HTTP (pour les tests)
+  static http.Client get httpClient => _httpClient;
+  static set httpClient(http.Client client) => _httpClient = client;
+
+  // Endpoints - en minuscules pour correspondre aux noms des tables
+  static const String comptesEndpoint = '$baseUrl/comptes';
+  static const String panneauxEndpoint = '$baseUrl/panneaux';
+  static const String liaisonsPanneauxEndpoint = '$baseUrl/liaisons_panneaux';
 
   // Headers communs
   static const Map<String, String> headers = {
@@ -24,7 +31,7 @@ class DAO {
   // Méthode générique pour récupérer tous les éléments d'une table
   static Future<List<dynamic>> getAll(String table) async {
     try {
-      final response = await http.get(
+      final response = await httpClient.get(
         Uri.parse('$baseUrl/$table?action=getAll'),
         headers: headers,
       );
@@ -42,18 +49,60 @@ class DAO {
   // Méthode générique pour créer un nouvel élément
   static Future<dynamic> create(String table, Map<String, dynamic> data) async {
     try {
-      final response = await http.post(
+      // Nettoyer les données avant envoi
+      final cleanedData = Map<String, dynamic>.from(data);
+      
+      // Gestion spécifique par table
+      switch (table.toUpperCase()) {
+        case 'COMPTES':
+          // S'assurer que le mot de passe utilise le bon nom de champ
+          if (data.containsKey('mot_de_passe')) {
+            cleanedData['motdepasse'] = cleanedData.remove('mot_de_passe');
+          }
+          // Ajouter un numéro unique si nécessaire
+          if (!cleanedData.containsKey('num')) {
+            cleanedData['num'] = DateTime.now().millisecondsSinceEpoch % 1000000;
+          }
+          break;
+          
+        case 'PANNEAUX':
+          // Supprimer le champ code s'il n'existe pas
+          if (data.containsKey('code') && !data.containsKey('nom')) {
+            cleanedData['nom'] = cleanedData.remove('code');
+          }
+          break;
+          
+        case 'LIAISONS_PANNEAUX':
+          // Corriger le nom du champ si nécessaire
+          if (data.containsKey('id_panneau_1')) {
+            cleanedData['id_panneau1'] = cleanedData.remove('id_panneau_1');
+          }
+          if (data.containsKey('id_panneau_2')) {
+            cleanedData['id_panneau2'] = cleanedData.remove('id_panneau_2');
+          }
+          break;
+      }
+
+      print('Envoi des données à l\'API: $cleanedData'); // Debug
+      
+      final response = await httpClient.post(
         Uri.parse('$baseUrl/$table'),
-        headers: headers,
-        body: jsonEncode(data),
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(cleanedData),
       );
+      
+      print('Réponse de l\'API: ${response.statusCode} - ${response.body}'); // Debug
       
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Échec de la création: ${response.statusCode}');
+        throw Exception('Échec de la création (${response.statusCode}): ${response.body}');
       }
     } catch (e) {
+      print('Erreur lors de la création: $e'); // Debug
       throw Exception('Erreur lors de la connexion à l\'API: $e');
     }
   }
@@ -61,7 +110,7 @@ class DAO {
   // Méthode générique pour mettre à jour un élément
   static Future<bool> update(String table, Map<String, dynamic> data) async {
     try {
-      final response = await http.put(
+      final response = await httpClient.put(
         Uri.parse('$baseUrl/$table'),
         headers: headers,
         body: jsonEncode(data),
@@ -81,7 +130,7 @@ class DAO {
   // Méthode générique pour supprimer un élément
   static Future<bool> delete(String table, dynamic id) async {
     try {
-      final response = await http.delete(
+      final response = await httpClient.delete(
         Uri.parse('$baseUrl/$table/$id'),
         headers: headers,
       );
@@ -100,7 +149,7 @@ class DAO {
   // Méthode générique pour récupérer un élément par son ID
   static Future<dynamic> getById(String table, dynamic id) async {
     try {
-      final response = await http.get(
+      final response = await httpClient.get(
         Uri.parse('$baseUrl/$table/$id'),
         headers: headers,
       );
@@ -116,13 +165,4 @@ class DAO {
       throw Exception('Erreur lors de la connexion à l\'API: $e');
     }
   }
-
-  // Méthodes spécifiques pour rétrocompatibilité
-  static Future<List<dynamic>> getAllComptes() => getAll('COMPTES');
-  static Future<dynamic> createCompte(Map<String, dynamic> data) => create('COMPTES', data);
-  static Future<bool> updateCompte(Map<String, dynamic> data) => update('COMPTES', data);
-  static Future<bool> deleteCompte(dynamic id) => delete('COMPTES', id);
-  static Future<dynamic> getCompteById(dynamic id) => getById('COMPTES', id);
-  
-  // Ajoutez ici d'autres méthodes spécifiques si nécessaire...
 }

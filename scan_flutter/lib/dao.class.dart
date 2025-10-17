@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class DAO {
   // URL de base de votre API
-  static const String baseUrl = 'http://localhost:5000';  
+  static const String baseUrl = 'http://51.38.64.145:5001';  
   // Pour émulateur Android
   // Pour émulateur iOS ou appareil physique, utilisez l'IP de votre machine :
   // static const String baseUrl = 'http://VOTRE_IP_LOCALE:5000';

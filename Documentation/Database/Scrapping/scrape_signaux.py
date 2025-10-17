@@ -86,7 +86,7 @@ def connect_db(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path) if SAVE_SQLITE_FILE else ":memory:")
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS panneaux (
+        CREATE TABLE IF NOT EXISTS PANNEAUX (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             description TEXT,
@@ -306,7 +306,7 @@ def download_image(url: str, dest_dir: Path) -> Optional[Path]:
 def upsert_entry(conn: sqlite3.Connection, e: Entry) -> None:
     conn.execute(
         """
-        INSERT OR IGNORE INTO panneaux
+        INSERT OR IGNORE INTO PANNEAUX
             (name, description, type, source_url, image_url, image_path)
         VALUES
             (?, ?, ?, ?, ?, ?)
@@ -392,7 +392,7 @@ def export_csv(conn: sqlite3.Connection, csv_path: Path) -> None:
         "image_url",
         "image_path",
     ]
-    cur = conn.execute(f"SELECT {', '.join(cols)} FROM panneaux ORDER BY type, name")
+    cur = conn.execute(f"SELECT {', '.join(cols)} FROM PANNEAUX ORDER BY type, name")
     rows = cur.fetchall()
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -411,9 +411,9 @@ def export_sql(conn: sqlite3.Connection, sql_path: Path) -> None:
     with open(sql_path, "w", encoding="utf-8") as f:
         f.write(
             """
--- Table d'export des panneaux (compatible MySQL/phpMyAdmin)
-DROP TABLE IF EXISTS `panneaux`;
-CREATE TABLE `panneaux` (
+-- Table d'export des PANNEAUX (compatible MySQL/phpMyAdmin)
+DROP TABLE IF EXISTS `PANNEAUX`;
+CREATE TABLE `PANNEAUX` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(255) NOT NULL,
   `description` TEXT NULL,
@@ -428,7 +428,7 @@ CREATE TABLE `panneaux` (
         )
 
         cur = conn.execute(
-            "SELECT name, description, type, source_url, image_url, image_path FROM panneaux ORDER BY type, name"
+            "SELECT name, description, type, source_url, image_url, image_path FROM PANNEAUX ORDER BY type, name"
         )
         for (
             name,
@@ -439,7 +439,7 @@ CREATE TABLE `panneaux` (
             image_path,
         ) in cur:
             f.write(
-                "INSERT IGNORE INTO `panneaux` (name, description, type, source_url, image_url, image_path) VALUES ("
+                "INSERT IGNORE INTO `PANNEAUX` (name, description, type, source_url, image_url, image_path) VALUES ("
                 + ", ".join(
                     [
                         sql_escape(name),

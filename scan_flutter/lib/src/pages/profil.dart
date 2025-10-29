@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
+  static const routeName = '/profil';
 
   @override
   State<ProfilPage> createState() => _ProfilPageState();

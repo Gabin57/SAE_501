@@ -3,6 +3,8 @@ import 'package:scan_flutter/src/pages/profil.dart';
 
 class AccueilPage extends StatefulWidget {
   const AccueilPage({super.key});
+  static const routeName = '/';
+
 
   final String title = "Accueil";
 

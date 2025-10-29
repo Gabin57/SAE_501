@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+/* import 'package:flutter_gen/gen_l10n/app_localizations.dart'; */
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:scan_flutter/src/localization/app_localizations.dart';
+import 'package:scan_flutter/src/pages/accueil.dart';
+import 'package:scan_flutter/src/pages/profil.dart';
 
-import 'sample_feature/sample_item_details_view.dart';
+/* import 'sample_feature/sample_item_details_view.dart';
 import 'sample_feature/sample_item_list_view.dart';
+import 'settings/settings_view.dart'; */
 import 'settings/settings_controller.dart';
-import 'settings/settings_view.dart';
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -26,6 +29,7 @@ class MyApp extends StatelessWidget {
       listenable: settingsController,
       builder: (BuildContext context, Widget? child) {
         return MaterialApp(
+          title: 'Flutter Demo',
           // Providing a restorationScopeId allows the Navigator built by the
           // MaterialApp to restore the navigation stack when a user leaves and
           // returns to the app after it has been killed while running in the
@@ -51,14 +55,15 @@ class MyApp extends StatelessWidget {
           //
           // The appTitle is defined in .arb files found in the localization
           // directory.
-          onGenerateTitle: (BuildContext context) => 
-              AppLocalizations.of(context)!.appTitle,
+          onGenerateTitle: (BuildContext context) => AppLocalizations.of(context)!.appTitle,
 
           // Define a light and dark color theme. Then, read the user's
           // preferred ThemeMode (light, dark, or system default) from the
           // SettingsController to display the correct theme.
-          theme: ThemeData(),
-          darkTheme: ThemeData.dark(),
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          ),
+          darkTheme: ThemeData.dark(useMaterial3: true),
           themeMode: settingsController.themeMode,
 
           // Define a function to handle named routes in order to support
@@ -68,17 +73,24 @@ class MyApp extends StatelessWidget {
               settings: routeSettings,
               builder: (BuildContext context) {
                 switch (routeSettings.name) {
-                  case SettingsView.routeName:
+                  /* case SettingsView.routeName:
                     return SettingsView(controller: settingsController);
                   case SampleItemDetailsView.routeName:
                     return const SampleItemDetailsView();
                   case SampleItemListView.routeName:
                   default:
-                    return const SampleItemListView();
+                    return const SampleItemListView(); */
+                  case AccueilPage.routeName : 
+                    return AccueilPage();
+                  case ProfilPage.routeName :
+                    return ProfilPage();
+                  default :
+                    return AccueilPage();
                 }
               },
             );
           },
+          /* home: const AccueilPage(title: 'PanneauScan'), */
         );
       },
     );

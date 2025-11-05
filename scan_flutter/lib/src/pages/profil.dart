@@ -9,20 +9,15 @@ class ProfilPage extends StatefulWidget {
 }
 
 class _ProfilPageState extends State<ProfilPage> {
- @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      /* appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ), */
-      body: Center(
-        child: Column(
-          children: <Widget>[
-            Text("")
-          ]
-        )
-      )
+      appBar: AppBar(
+        title: const Text('Profil'),
+      ),
+      body: const Center(
+        child: Text('Page Profil'),
+      ),
     );
   }
 }

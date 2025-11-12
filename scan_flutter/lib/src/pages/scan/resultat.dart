@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:scan_flutter/src/pages/profil.dart';
+import 'package:scan_flutter/src/pages/connexion.dart';
 
 class ResultatPage extends StatefulWidget {
   const ResultatPage({super.key});
@@ -15,7 +15,7 @@ class _ResultatPageState extends State<ResultatPage> {
 
   ListView _afficheDonnee() {
     setState(() {
-      var donneesAAfficher = _getDonnees();
+      _getDonnees();
     });
     return ListView();
   }
@@ -42,12 +42,7 @@ class _ResultatPageState extends State<ResultatPage> {
         actions: [
           IconButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (context) => const ProfilPage(),
-                  ),
-                );
+                Navigator.pushNamed(context, ConnexionPage.routeName);
               },
               icon: Icon(Icons.person_outlined)),
         ],
@@ -64,23 +59,13 @@ class _ResultatPageState extends State<ResultatPage> {
 
             IconButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (context) => const ProfilPage(),
-                    ),
-                  );
+                  Navigator.pushNamed(context, ConnexionPage.routeName);
                 }, // TO DO : Modifier le système pour gérer l'affichage de l'overlay d'ajout
                 icon: Icon(Icons.add_outlined)),
 
             IconButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (context) => const ProfilPage(),
-                    ),
-                  );
+                  Navigator.pushNamed(context, ConnexionPage.routeName);
                 }, // TO DO : Modifier le système pour gérer l'affichage de l'overlay de confirmation de suppresion
                 icon: Icon(Icons.restore_from_trash_outlined)),
 

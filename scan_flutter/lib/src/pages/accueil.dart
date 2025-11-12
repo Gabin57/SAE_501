@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:scan_flutter/src/pages/profil.dart';
+
+import 'package:scan_flutter/src/pages/connexion.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/search_bar.dart';
+import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
 
 class AccueilPage extends StatefulWidget {
   const AccueilPage({super.key});
@@ -19,7 +21,6 @@ class _AccueilPageState extends State<AccueilPage> {
   // Palette et tailles centralisées
   static const _appBarBg = AppColors.appBarBg;
   static const _tileBg = AppColors.tileBg;
-  static const _bottomBarBg = AppColors.bottomBarBg;
   static const _iconMuted = AppColors.iconMuted;
   static const _labelBg = AppColors.labelBg;
   static const _placeholderBg = AppColors.placeholderBg;
@@ -76,6 +77,7 @@ class _AccueilPageState extends State<AccueilPage> {
         surfaceTintColor: Colors.transparent,
         foregroundColor: _textDark,
         iconTheme: const IconThemeData(color: _textDark),
+        automaticallyImplyLeading: false,
         titleTextStyle:
             Theme.of(context).textTheme.titleLarge?.copyWith(color: _textDark),
         title: const Text('Code des Panneaux'),
@@ -84,12 +86,7 @@ class _AccueilPageState extends State<AccueilPage> {
         actions: [
           IconButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (context) => const ProfilPage(),
-                  ),
-                );
+                Navigator.pushNamed(context, ConnexionPage.routeName);
               },
               iconSize: 30,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -123,27 +120,7 @@ class _AccueilPageState extends State<AccueilPage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: _bottomBarBg,
-        selectedItemColor: _textDark,
-        unselectedItemColor: _textDark,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedLabelStyle:
-            Theme.of(context).textTheme.labelMedium?.copyWith(color: _textDark),
-        unselectedLabelStyle:
-            Theme.of(context).textTheme.labelMedium?.copyWith(color: _textDark),
-        selectedIconTheme: const IconThemeData(size: 28, color: _textDark),
-        unselectedIconTheme: const IconThemeData(size: 24, color: _textDark),
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined), label: 'Accueil'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.center_focus_strong), label: 'Scanner'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.info_outline), label: 'À propos'),
-        ],
-      ),
+      bottomNavigationBar: const AppBottomNavigation(),
       /* floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Increment',

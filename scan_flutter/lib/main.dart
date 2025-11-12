@@ -3,6 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'src/localization/app_localizations.dart';
 import 'src/pages/accueil.dart';
 import 'src/pages/profil.dart';
+import 'src/pages/connexion.dart';
+import 'src/pages/inscription.dart';
+import 'src/pages/infos.dart';
 import 'src/style/app_theme.dart';
 
 void main() {
@@ -44,6 +47,12 @@ class MyApp extends StatelessWidget {
             switch (routeSettings.name) {
               case AccueilPage.routeName:
                 return const AccueilPage();
+              case ConnexionPage.routeName:
+                return const ConnexionPage();
+              case InscriptionPage.routeName:
+                return const InscriptionPage();
+              case InfosPage.routeName:
+                return const InfosPage();
               case ProfilPage.routeName:
                 return const ProfilPage();
               default:

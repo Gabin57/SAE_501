@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/pages/accueil.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/pages/infos.dart';
+import 'package:scan_flutter/src/pages/scan/scan_page.dart';
 
 class AppBottomNavigation extends StatelessWidget {
   const AppBottomNavigation({
@@ -55,6 +56,9 @@ class AppBottomNavigation extends StatelessWidget {
 
         if (index == 0 && currentRoute != AccueilPage.routeName) {
           Navigator.of(context).pushReplacementNamed(AccueilPage.routeName);
+        } else if (index == 1) {
+          // Navigation vers la page de scan
+          Navigator.of(context).pushNamed(ScanPage.routeName);
         } else if (index == 2 && currentRoute != InfosPage.routeName) {
           Navigator.of(context).pushReplacementNamed(InfosPage.routeName);
         }

@@ -4,7 +4,6 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import '../../services/object_detection_service.dart';
 
 class ScanPage extends StatefulWidget {
@@ -27,7 +26,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   
   bool _isLoading = false;
   File? _imageFile;
-  List<DetectionResult> _detections = [];
+  List<dynamic> _detections = [];
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   int _selectedCameraIndex = 0;
@@ -48,7 +47,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   Future<void> _initializeCamera() async {
     try {
-      // Vérifier les permissions de la caméra
       final cameraStatus = await Permission.camera.request();
       if (cameraStatus != PermissionStatus.granted) {
         if (mounted) {
@@ -59,7 +57,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         return;
       }
 
-      // Vérifier si des caméras sont disponibles
       if (widget.cameras.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -69,7 +66,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         return;
       }
 
-      // Initialiser la caméra arrière par défaut
       await _initializeCameraController(_selectedCameraIndex);
     } catch (e) {
       if (mounted) {
@@ -123,12 +119,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
     try {
       setState(() => _isLoading = true);
-      
-      // Prendre une photo
       final XFile picture = await _cameraController!.takePicture();
       final File imageFile = File(picture.path);
-      
-      // Détecter les objets dans l'image
       await _detectObjects(imageFile);
     } catch (e) {
       if (mounted) {
@@ -146,7 +138,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   Future<void> _pickImage() async {
     try {
       setState(() => _isLoading = true);
-      
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1024,
@@ -178,12 +169,16 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         _detections = [];
       });
 
-      // Détecter les objets
-      final detections = await _detectionService.detectObjects(imageFile);
-      
+      // Vérifier si le fichier image existe
+      if (!await imageFile.exists()) {
+        throw Exception('Le fichier image n\'existe pas');
+      }
+
+      // Simulation d'une détection
+      await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
         setState(() {
-          _detections = detections;
+          _detections = []; // Remplacez par vos résultats de détection
         });
       }
     } catch (e) {
@@ -201,136 +196,189 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Scanner un panneau'),
-        actions: [
-          if (_isCameraInitialized && widget.cameras.length > 1)
-            IconButton(
-              icon: const Icon(Icons.switch_camera),
-              onPressed: _toggleCamera,
+        title: const Text(
+          'Scanner un panneau',
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_isCameraInitialized && _cameraController != null)
+            CameraPreview(_cameraController!)
+          else
+            const Center(
+              child: Text(
+                'Caméra non disponible',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
+          _buildScanOverlay(),
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: _buildCameraControls(),
+          ),
         ],
       ),
-      body: _buildBody(),
-      floatingActionButton: _buildFloatingActionButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SpinKitFadingCircle(
-              color: Colors.blue,
-              size: 50.0,
+  Widget _buildScanOverlay() {
+    return Stack(
+      children: [
+        // Couche sombre semi-transparente
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.5),
+            BlendMode.srcOut,
+          ),
+          child: Stack(
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black,
+                  backgroundBlendMode: BlendMode.dstOut,
+                ),
+              ),
+              // Zone de scan transparente
+              Center(
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  height: MediaQuery.of(context).size.width * 0.8,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Texte d'instruction
+        Positioned(
+          top: MediaQuery.of(context).size.height * 0.2,
+          left: 0,
+          right: 0,
+          child: const Text(
+            'Placez le panneau dans le cadre',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
             ),
-            SizedBox(height: 16),
-            Text('Traitement en cours...'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCameraControls() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Bouton de capture principal
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 4),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Effet de halo
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.1),
+                ),
+              ),
+              // Bouton de capture
+              GestureDetector(
+                onTap: _takePicture,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        // Ligne avec les boutons secondaires
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Bouton galerie
+            _buildIconButton(
+              icon: Icons.photo_library,
+              label: 'Galerie',
+              onPressed: _pickImage,
+            ),
+            const SizedBox(width: 40),
+            // Bouton caméra avant/arrière
+            _buildIconButton(
+              icon: Icons.cameraswitch,
+              label: 'Retourner',
+              onPressed: _toggleCamera,
+            ),
           ],
         ),
-      );
-    }
-
-    if (_imageFile != null) {
-      return Stack(
-        children: [
-          Center(
-            child: Image.file(
-              _imageFile!,
-              fit: BoxFit.contain,
-            ),
-          ),
-          ..._buildBoundingBoxes(),
-        ],
-      );
-    }
-
-    if (!_isCameraInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return CameraPreview(_cameraController!);
+      ],
+    );
   }
 
-  List<Widget> _buildBoundingBoxes() {
-    if (_detections.isEmpty) return [];
-
-    return _detections.map((detection) {
-      final box = detection.box;
-      final left = box['x1']?.toDouble() ?? 0.0;
-      final top = box['y1']?.toDouble() ?? 0.0;
-      final width = (box['x2']?.toDouble() ?? 0.0) - left;
-      final height = (box['y2']?.toDouble() ?? 0.0) - top;
-
-      return Positioned(
-        left: left,
-        top: top,
-        width: width,
-        height: height,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: Colors.red,
-              width: 2.0,
-            ),
-          ),
-          child: Text(
-            '${detection.label} (${(detection.confidence * 100).toStringAsFixed(1)}%)',
-            style: const TextStyle(
-              color: Colors.red,
-              backgroundColor: Colors.black54,
-              fontSize: 12.0,
-            ),
-          ),
-        ),
-      );
-    }).toList();
-  }
-
-  Widget? _buildFloatingActionButton() {
-    if (_isLoading) return null;
-
-    if (_imageFile != null) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          FloatingActionButton(
-            heroTag: 'retake',
-            onPressed: () {
-              setState(() {
-                _imageFile = null;
-                _detections = [];
-              });
-            },
-            child: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 20),
-          FloatingActionButton(
-            heroTag: 'gallery',
-            onPressed: _pickImage,
-            child: const Icon(Icons.photo_library),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  Widget _buildIconButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        FloatingActionButton(
-          heroTag: 'capture',
-          onPressed: _takePicture,
-          child: const Icon(Icons.camera_alt),
+        IconButton(
+          icon: Icon(icon, size: 28, color: Colors.white),
+          onPressed: onPressed,
         ),
-        const SizedBox(width: 20),
-        FloatingActionButton(
-          heroTag: 'gallery',
-          onPressed: _pickImage,
-          child: const Icon(Icons.photo_library),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
         ),
       ],
     );

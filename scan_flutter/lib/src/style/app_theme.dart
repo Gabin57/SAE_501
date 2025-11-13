@@ -50,7 +50,7 @@ class AppTheme {
 
   // Thème clair
   static ThemeData lightTheme = ThemeData(
-    useMaterial3: true,
+    useMaterial3: false, // Désactive Material 3
     colorScheme: const ColorScheme.light(
       primary: primaryColor,
       secondary: secondaryColor,
@@ -101,18 +101,19 @@ class AppTheme {
         vertical: smallPadding,
       ),
     ),
-    cardTheme: CardTheme(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
+cardTheme: ThemeData.light().cardTheme.copyWith(
+      elevation: 4.0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12.0)),
       ),
       margin: const EdgeInsets.all(mediumPadding),
+      clipBehavior: Clip.antiAlias,
     ),
   );
 
   // Thème sombre (optionnel)
   static ThemeData darkTheme = ThemeData.dark().copyWith(
-    useMaterial3: true,
+    useMaterial3: false, // Désactive Material 3
     colorScheme: const ColorScheme.dark(
       primary: primaryColor,
       secondary: secondaryColor,

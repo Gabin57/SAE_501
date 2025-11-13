@@ -24,8 +24,70 @@ class InfosPage extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      body: const Center(),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('But de l\'application', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            const Text(
+              'Cette application a pour objectif d\'aider les utilisateurs à scanner et reconnaître des panneaux et signaux routiers, ' 
+              'fournir des informations sur leur signification et offrir des fonctionnalités d\'exploration et de suivi local.',
+            ),
+            const SizedBox(height: 16),
+            Text('L\'équipe', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            // Team member cards
+            _memberCard(
+              name: 'Gabin HUMBERT',
+              role: 'Développeur principal',
+              description: 'Conception et architecture de l\'application, intégration de la détection d\'objets.',
+            ),
+            _memberCard(
+              name: 'Margaux HALLER',
+              role: 'Développeuse API',
+              description: 'Contributions diverses: scraping, base de données et documentation.',
+            ),
+            _memberCard(
+              name: 'Zain-Alabaidine AIT BAMMOU',
+              role: 'Développeur mobile',
+              description: 'Développement Flutter, interface utilisateur et tests.',
+            ),
+            const SizedBox(height: 24),
+            const Text('Remarques', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            const Text('Les données de profil et préférences sont stockées localement sur l\'appareil et ne sont pas transmises par défaut.'),
+          ],
+        ),
+      ),
       bottomNavigationBar: const AppBottomNavigation(currentIndex: 2),
+    );
+  }
+
+  Widget _memberCard({required String name, required String role, required String description}) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(role, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Text(description),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

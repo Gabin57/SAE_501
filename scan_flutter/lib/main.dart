@@ -1,27 +1,45 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:camera/camera.dart';
+
 import 'src/localization/app_localizations.dart';
 import 'src/pages/accueil.dart';
 import 'src/pages/profil.dart';
 import 'src/pages/connexion.dart';
 import 'src/pages/inscription.dart';
 import 'src/pages/infos.dart';
+import 'src/pages/scan/scan_page.dart';
 import 'src/style/app_theme.dart';
 
-void main() {
-  runApp(const MyApp());
+List<CameraDescription> cameras = [];
+
+Future<void> main() async {
+  // Assurez-vous que les bindings Flutter sont initialisés
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Obtenir la liste des caméras disponibles
+    cameras = await availableCameras();
+  } on CameraException catch (e) {
+    debugPrint('Erreur lors de l\'initialisation de la caméra: ${e.description}');
+  }
+  
+  runApp(MyApp(cameras: cameras));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final List<CameraDescription> cameras;
+  
+  const MyApp({super.key, required this.cameras});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Scan de panneaux',
       restorationScopeId: 'app',
       debugShowCheckedModeBanner: false,
-
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -29,17 +47,13 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('fr'),
+        Locale('fr', ''),
       ],
-
       onGenerateTitle: (BuildContext context) =>
           AppLocalizations.of(context)!.appTitle,
-
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      // Pour forcer le thème clair
       themeMode: ThemeMode.light,
-
       onGenerateRoute: (RouteSettings routeSettings) {
         return MaterialPageRoute<void>(
           settings: routeSettings,
@@ -55,13 +69,14 @@ class MyApp extends StatelessWidget {
                 return const InfosPage();
               case ProfilPage.routeName:
                 return const ProfilPage();
+              case ScanPage.routeName:
+                return ScanPage(cameras: cameras);
               default:
                 return const AccueilPage();
             }
           },
         );
       },
-      // home: const AccueilPage(),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:scan_flutter/src/pages/connexion.dart';
+import 'package:scan_flutter/src/pages/scan/resultat.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/search_bar.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
@@ -37,8 +38,11 @@ class _AccueilPageState extends State<AccueilPage> {
         labelBg: _labelBg,
         placeholderBg: _placeholderBg,
         onTap: () {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Ouvrir Tutoriel')));
+          Navigator.pushNamed(
+              context,
+              ResultatPage.routeName,
+              arguments: ResultatArguments(0, "panneaux"),
+            );
         },
       ),
       for (int i = 1; i <= 5; i++)
@@ -49,8 +53,11 @@ class _AccueilPageState extends State<AccueilPage> {
           labelBg: _labelBg,
           placeholderBg: _placeholderBg,
           onTap: () {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text('Ouvrir Image $i')));
+            Navigator.pushNamed(
+              context,
+              ResultatPage.routeName,
+              arguments: ResultatArguments(i, "panneaux"),
+            );
           },
         ),
     ];
@@ -78,19 +85,21 @@ class _AccueilPageState extends State<AccueilPage> {
         foregroundColor: _textDark,
         iconTheme: const IconThemeData(color: _textDark),
         automaticallyImplyLeading: false,
-        titleTextStyle:
-            Theme.of(context).textTheme.titleLarge?.copyWith(color: _textDark),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: _textDark),
         title: const Text('Code des Panneaux'),
         elevation: 0,
         scrolledUnderElevation: 0,
         actions: [
           IconButton(
-              onPressed: () {
-                Navigator.pushNamed(context, ConnexionPage.routeName);
-              },
-              iconSize: 30,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              icon: const Icon(Icons.person_outlined)),
+            onPressed: () {
+              Navigator.pushNamed(context, ConnexionPage.routeName);
+            },
+            iconSize: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            icon: const Icon(Icons.person_outlined),
+          ),
         ],
       ),
       body: CustomScrollView(
@@ -113,9 +122,7 @@ class _AccueilPageState extends State<AccueilPage> {
                 crossAxisSpacing: 16.0,
                 childAspectRatio: 0.9,
               ),
-              delegate: SliverChildListDelegate(
-                _buildGridItems(),
-              ),
+              delegate: SliverChildListDelegate(_buildGridItems()),
             ),
           ),
         ],
@@ -125,7 +132,8 @@ class _AccueilPageState extends State<AccueilPage> {
         onPressed: _incrementCounter,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
-      ), */ // This trailing comma makes auto-formatting nicer for build methods.
+      ), */
+      // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
@@ -197,8 +205,11 @@ class _GridCard extends StatelessWidget {
                           ),
                         ),
                         child: Center(
-                          child: Icon(Icons.image_outlined,
-                              size: 28, color: labelColor),
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 28,
+                            color: labelColor,
+                          ),
                         ),
                       ),
               ),
@@ -215,10 +226,9 @@ class _GridCard extends StatelessWidget {
                 ),
                 child: Text(
                   title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: labelColor),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: labelColor),
                 ),
               ),
             ],

@@ -1,92 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/pages/connexion.dart';
+import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+
+class ResultatArguments {
+  final int id;
+  final String database;
+  ResultatArguments(this.id, this.database);
+}
+
 
 class ResultatPage extends StatefulWidget {
-  const ResultatPage({super.key});
+  static const routeName = '/resultat';
 
-  final String title = "Détails";
+  const ResultatPage({super.key});
 
   @override
   State<ResultatPage> createState() => _ResultatPageState();
 }
 
 class _ResultatPageState extends State<ResultatPage> {
-  List<List<Map<String, String>>> donnes = [];
+  late int id;
+  late String database;
 
-  ListView _afficheDonnee() {
-    setState(() {
-      _getDonnees();
-    });
-    return ListView();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final args = ModalRoute.of(context)!.settings.arguments as ResultatArguments;
+
+    id = args.id;
+    database = args.database;
+
+    // Load data here (not in build)
+    _getDonnees();
   }
 
-  void _getDonnees() {}
+  List<List<Map<String, String>>> donnes = [];
 
-  /* void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  } */
+  void _getDonnees() {
+    // TODO: Charger les données depuis la BDD
+    print("Changement des données de la capture $id depuis la base de données $database");
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        title: Text("Détails"),
         actions: [
           IconButton(
               onPressed: () {
                 Navigator.pushNamed(context, ConnexionPage.routeName);
               },
-              icon: Icon(Icons.person_outlined)),
+              icon: const Icon(Icons.person_outlined)),
         ],
       ),
       body: Center(
         child: Column(
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            // TO DO : BARRE DE RECHERCHE ?
-            _afficheDonnee(),
+          children: [
+            Text("ID reçu : $id"),
+            Text("DB reçue : $database"),
 
-            IconButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, ConnexionPage.routeName);
-                }, // TO DO : Modifier le système pour gérer l'affichage de l'overlay d'ajout
-                icon: Icon(Icons.add_outlined)),
+            const SizedBox(height: 20),
 
-            IconButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, ConnexionPage.routeName);
-                }, // TO DO : Modifier le système pour gérer l'affichage de l'overlay de confirmation de suppresion
-                icon: Icon(Icons.restore_from_trash_outlined)),
-
-            /* Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ), */
+            // Placeholder before you build real UI
+            Expanded(
+              child: ListView(
+                children: [
+                  Text("Vos données seront affichées ici."),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(items: [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined)),
-        BottomNavigationBarItem(icon: Icon(Icons.camera_alt_outlined)),
-        BottomNavigationBarItem(icon: Icon(Icons.explore_outlined)),
-        BottomNavigationBarItem(icon: Icon(Icons.more_horiz_outlined)),
-      ]),
-      /* floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), */ // This trailing comma makes auto-formatting nicer for build methods.
+      bottomNavigationBar: const AppBottomNavigation(),
     );
   }
 }

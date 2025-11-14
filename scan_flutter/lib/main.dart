@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:camera/camera.dart';
+import 'package:scan_flutter/src/pages/scan/resultat.dart';
 
 import 'src/pages/accueil.dart';
 import 'src/pages/profil.dart';
@@ -65,6 +66,8 @@ class MyApp extends StatelessWidget {
                 return const InfosPage();
               case ProfilPage.routeName:
                 return const ProfilPage();
+              case ResultatPage.routeName:
+                return ResultatPage();
               case ScanPage.routeName:
                 return ScanPage(cameras: cameras);
               default:

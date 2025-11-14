@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:camera/camera.dart';
 
-import 'src/localization/app_localizations.dart';
 import 'src/pages/accueil.dart';
 import 'src/pages/profil.dart';
 import 'src/pages/connexion.dart';
@@ -40,7 +39,6 @@ class MyApp extends StatelessWidget {
       restorationScopeId: 'app',
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
-        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -48,8 +46,7 @@ class MyApp extends StatelessWidget {
       supportedLocales: const [
         Locale('fr', ''),
       ],
-      onGenerateTitle: (BuildContext context) =>
-          AppLocalizations.of(context)!.appTitle,
+      onGenerateTitle: (BuildContext context) => 'Scan de panneaux',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,

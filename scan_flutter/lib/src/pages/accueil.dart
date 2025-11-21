@@ -39,10 +39,17 @@ class _AccueilPageState extends State<AccueilPage> {
         placeholderBg: _placeholderBg,
         onTap: () {
           Navigator.pushNamed(
-              context,
-              ResultatPage.routeName,
-              arguments: ResultatArguments(0, "panneaux"),
-            );
+            context,
+            ResultatPage.routeName,
+            arguments: ResultatArguments(
+              0, 
+              "panneaux",
+              imagePath: 'assets/images/placeholder.jpg',
+              signName: 'Tutoriel',
+              confidence: 0.95,
+              description: 'Ceci est un exemple de tutoriel sur l\'utilisation de l\'application.',
+            ),
+          );
         },
       ),
       for (int i = 1; i <= 5; i++)
@@ -56,7 +63,14 @@ class _AccueilPageState extends State<AccueilPage> {
             Navigator.pushNamed(
               context,
               ResultatPage.routeName,
-              arguments: ResultatArguments(i, "panneaux"),
+              arguments: ResultatArguments(
+                i, 
+                "panneaux",
+                imagePath: 'assets/images/placeholder.jpg',
+                signName: 'Panneau $i',
+                confidence: 0.85,
+                description: 'Description du panneau $i. Cette description est un exemple et sera remplacée par les données réelles du panneau.',
+              ),
             );
           },
         ),

@@ -5,9 +5,20 @@ import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
 class ResultatArguments {
   final int id;
   final String database;
-  ResultatArguments(this.id, this.database);
-}
+  final String imagePath;
+  final String signName;
+  final double confidence;
+  final String description;
 
+  ResultatArguments(
+    this.id,
+    this.database, {
+    required this.imagePath,
+    required this.signName,
+    required this.confidence,
+    required this.description,
+  });
+}
 
 class ResultatPage extends StatefulWidget {
   static const routeName = '/resultat';
@@ -21,6 +32,10 @@ class ResultatPage extends StatefulWidget {
 class _ResultatPageState extends State<ResultatPage> {
   late int id;
   late String database;
+  late String imagePath;
+  late String signName;
+  late double confidence;
+  late String description;
 
   @override
   void didChangeDependencies() {
@@ -30,45 +45,120 @@ class _ResultatPageState extends State<ResultatPage> {
 
     id = args.id;
     database = args.database;
-
-    // Load data here (not in build)
-    _getDonnees();
-  }
-
-  List<List<Map<String, String>>> donnes = [];
-
-  void _getDonnees() {
-    // TODO: Charger les données depuis la BDD
-    print("Changement des données de la capture $id depuis la base de données $database");
+    imagePath = args.imagePath;
+    signName = args.signName;
+    confidence = args.confidence;
+    description = args.description;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1A2B47),
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text("Détails"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Résultat',
+          style: TextStyle(color: Colors.white),
+        ),
         actions: [
           IconButton(
-              onPressed: () {
-                Navigator.pushNamed(context, ConnexionPage.routeName);
-              },
-              icon: const Icon(Icons.person_outlined)),
+            onPressed: () {
+              Navigator.pushNamed(context, ConnexionPage.routeName);
+            },
+            icon: const Icon(Icons.person_outline, color: Colors.white),
+          ),
         ],
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text("ID reçu : $id"),
-            Text("DB reçue : $database"),
-
-            const SizedBox(height: 20),
-
-            // Placeholder before you build real UI
-            Expanded(
-              child: ListView(
+            // Image du panneau détecté
+            Container(
+              height: 250,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(imagePath), // Utiliser FileImage pour les images du téléphone
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            
+            // Contenu
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Vos données seront affichées ici."),
+                  // Nom du panneau
+                  Text(
+                    signName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  
+                  // Pourcentage de correspondance
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(confidence * 100).toStringAsFixed(1)}% de correspondance',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  
+                  // Description
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Description',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
+                  ),
+                  
+                  // Bouton "En savoir plus"
+                  const SizedBox(height: 40),
+                  ElevatedButton(
+                    onPressed: () {
+                      // TODO: Naviguer vers la page de détails complète
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2D5AF1),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'En savoir plus',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

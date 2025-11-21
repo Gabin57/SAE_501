@@ -59,16 +59,38 @@ class _ResultatPageState extends State<ResultatPage> {
       body: Center(
         child: Column(
           children: [
-            Text("ID reçu : $id"),
-            Text("DB reçue : $database"),
+            /* Text("ID reçu : $id"),
+            Text("DB reçue : $database"), */
 
-            const SizedBox(height: 20),
+            
 
             // Placeholder before you build real UI
             Expanded(
               child: ListView(
                 children: [
-                  Text("Vos données seront affichées ici."),
+                  ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                        child: Image(
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          image:ExactAssetImage("tutoriel.jpg"),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Text("Capture tutoriel"),
+                      Text("100%")
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text("Ceci est la description du panneau d'après notre base de donnée."),
+                  const SizedBox(height: 20),
+                  Text("Scanné par : Vous"),
                 ],
               ),
             ),

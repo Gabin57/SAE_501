@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/pages/connexion.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
@@ -54,45 +55,50 @@ class _ResultatPageState extends State<ResultatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A2B47),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Résultat',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
         actions: [
           IconButton(
             onPressed: () {
               Navigator.pushNamed(context, ConnexionPage.routeName);
             },
-            icon: const Icon(Icons.person_outline, color: Colors.white),
+            icon: const Icon(Icons.person_outline, color: Colors.black),
           ),
         ],
       ),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image du panneau détecté
             Container(
-              height: 250,
+              width: double.infinity,
+              height: 220,
               decoration: BoxDecoration(
+                color: Colors.grey[200],
                 image: DecorationImage(
-                  image: AssetImage(imagePath), // Utiliser FileImage pour les images du téléphone
-                  fit: BoxFit.cover,
+                  image: imagePath.startsWith('assets/')
+                      ? AssetImage(imagePath) as ImageProvider
+                      : FileImage(File(imagePath)) as ImageProvider,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
             
             // Contenu
             Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -100,62 +106,69 @@ class _ResultatPageState extends State<ResultatPage> {
                   Text(
                     signName,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
+                      color: Colors.black,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
+                      height: 1.2,
                     ),
                   ),
                   
                   // Pourcentage de correspondance
                   const SizedBox(height: 8),
                   Text(
-                    '${(confidence * 100).toStringAsFixed(1)}% de correspondance',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
+                    '${(confidence * 100).toStringAsFixed(0)}% de correspondance',
+                    style: TextStyle(
+                      color: Colors.green[700],
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   
+                  // Ligne de séparation
+                  const Divider(height: 40, color: Color(0xFFE0E0E0)),
+                  
                   // Description
-                  const SizedBox(height: 30),
                   const Text(
                     'Description',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
+                      color: Colors.black,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     description,
                     style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
+                      color: Color(0xFF666666),
+                      fontSize: 15,
                       height: 1.5,
                     ),
                   ),
                   
                   // Bouton "En savoir plus"
-                  const SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: () {
-                      // TODO: Naviguer vers la page de détails complète
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2D5AF1),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // TODO: Naviguer vers la page de détails complète
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2D5AF1),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
                       ),
-                    ),
-                    child: const Text(
-                      'En savoir plus',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                      child: const Text(
+                        'En savoir plus',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -165,7 +178,6 @@ class _ResultatPageState extends State<ResultatPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(),
     );
   }
 }

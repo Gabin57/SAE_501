@@ -8,7 +8,6 @@ class ResultatArguments {
   ResultatArguments(this.id, this.database);
 }
 
-
 class ResultatPage extends StatefulWidget {
   static const routeName = '/resultat';
 
@@ -26,7 +25,8 @@ class _ResultatPageState extends State<ResultatPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final args = ModalRoute.of(context)!.settings.arguments as ResultatArguments;
+    final args =
+        ModalRoute.of(context)!.settings.arguments as ResultatArguments;
 
     id = args.id;
     database = args.database;
@@ -39,7 +39,9 @@ class _ResultatPageState extends State<ResultatPage> {
 
   void _getDonnees() {
     // TODO: Charger les données depuis la BDD
-    print("Changement des données de la capture $id depuis la base de données $database");
+    print(
+      "Changement des données de la capture $id depuis la base de données $database",
+    );
   }
 
   @override
@@ -50,10 +52,11 @@ class _ResultatPageState extends State<ResultatPage> {
         title: Text("Détails"),
         actions: [
           IconButton(
-              onPressed: () {
-                Navigator.pushNamed(context, ConnexionPage.routeName);
-              },
-              icon: const Icon(Icons.person_outlined)),
+            onPressed: () {
+              Navigator.pushNamed(context, ConnexionPage.routeName);
+            },
+            icon: const Icon(Icons.person_outlined),
+          ),
         ],
       ),
       body: Center(
@@ -62,20 +65,31 @@ class _ResultatPageState extends State<ResultatPage> {
             /* Text("ID reçu : $id"),
             Text("DB reçue : $database"), */
 
-            const SizedBox(height: 20),
-
             // Placeholder before you build real UI
             Expanded(
               child: ListView(
                 children: [
-                  Image(),
-                  Column(
-                    children: [
-                      Text("Capture tutoriel"),
-                      Text("100%")
-                    ],
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                    child: Image(
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      image: ExactAssetImage("tutoriel.jpg"),
+                    ),
                   ),
-                  Text("Ceci est la description du panneau d'après notre base de donnée."),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [Text("Capture tutoriel"), Text("100%")],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Ceci est la description du panneau d'après notre base de donnée.",
+                  ),
+                  const SizedBox(height: 20),
                   Text("Scanné par : Vous"),
                 ],
               ),

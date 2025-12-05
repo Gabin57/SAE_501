@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -28,13 +27,16 @@ class DetectionResult {
 class ObjectDetectionService {
   // Utiliser la même URL de base que le DAO
   static const String _baseUrl = 'http://51.38.64.145:5001';
-  
-  Future<List<DetectionResult>> detectObjects(File imageFile, {double conf = 0.5}) async {
+
+  Future<List<DetectionResult>> detectObjects(
+    File imageFile, {
+    double conf = 0.5,
+  }) async {
     try {
       // Convertir l'image en base64
       final bytes = await imageFile.readAsBytes();
       final base64Image = base64Encode(bytes);
-      
+
       // Envoyer la requête à l'API Python avec le modèle YOLO
       // L'API doit être configurée pour utiliser /var/www/nounours/API/python-api/models/best.pt
       final response = await http.post(
@@ -48,7 +50,7 @@ class ObjectDetectionService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Format attendu de l'API YOLO (adapté selon votre implémentation)
         // Le modèle YOLO retourne généralement une liste de résultats
         if (data['success'] == true || data.containsKey('results')) {
@@ -63,12 +65,12 @@ class ObjectDetectionService {
             // Format alternatif: adapter selon votre API
             detections = [];
           }
-          
-          return detections
-              .map((d) => DetectionResult.fromJson(d))
-              .toList();
+
+          return detections.map((d) => DetectionResult.fromJson(d)).toList();
         } else {
-          throw Exception(data['error'] ?? 'Erreur inconnue lors de la détection');
+          throw Exception(
+            data['error'] ?? 'Erreur inconnue lors de la détection',
+          );
         }
       } else {
         throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
@@ -77,21 +79,21 @@ class ObjectDetectionService {
       throw Exception('Échec de la détection d\'objets: $e');
     }
   }
-  
+
   // Méthode utilitaire pour redimensionner l'image si nécessaire
   Future<File> resizeImageIfNeeded(File imageFile, {int maxSize = 1024}) async {
     final bytes = await imageFile.readAsBytes();
     final image = img.decodeImage(bytes);
-    
+
     if (image == null) {
       throw Exception('Impossible de décoder l\'image');
     }
-    
+
     // Vérifier si un redimensionnement est nécessaire
     if (image.width <= maxSize && image.height <= maxSize) {
       return imageFile;
     }
-    
+
     // Calculer les nouvelles dimensions en conservant le ratio
     int newWidth, newHeight;
     if (image.width > image.height) {
@@ -101,19 +103,21 @@ class ObjectDetectionService {
       newHeight = maxSize;
       newWidth = (image.width * maxSize / image.height).round();
     }
-    
+
     // Redimensionner l'image
     final resizedImage = img.copyResize(
       image,
       width: newWidth,
       height: newHeight,
     );
-    
+
     // Enregistrer l'image redimensionnée
     final tempDir = await getTemporaryDirectory();
-    final resizedFile = File('${tempDir.path}/resized_${DateTime.now().millisecondsSinceEpoch}.jpg');
+    final resizedFile = File(
+      '${tempDir.path}/resized_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
     await resizedFile.writeAsBytes(img.encodeJpg(resizedImage));
-    
+
     return resizedFile;
   }
 }

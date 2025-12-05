@@ -17,20 +17,31 @@ List<CameraDescription> cameras = [];
 Future<void> main() async {
   // Assurez-vous que les bindings Flutter sont initialisés
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     // Obtenir la liste des caméras disponibles
     cameras = await availableCameras();
   } on CameraException catch (e) {
-    debugPrint('Erreur lors de l\'initialisation de la caméra: ${e.description}');
+    // Gérer silencieusement l'erreur de caméra (notamment dans les navigateurs web)
+    // La caméra n'est pas disponible, mais l'application peut continuer avec une liste vide
+    cameras = [];
+    debugPrint(
+      'Caméra non disponible: ${e.description}. L\'application continuera sans caméra.',
+    );
+  } catch (e) {
+    // Gérer toute autre erreur
+    cameras = [];
+    debugPrint(
+      'Erreur lors de l\'initialisation des caméras: $e. L\'application continuera sans caméra.',
+    );
   }
-  
+
   runApp(MyApp(cameras: cameras));
 }
 
 class MyApp extends StatelessWidget {
   final List<CameraDescription> cameras;
-  
+
   const MyApp({super.key, required this.cameras});
 
   @override
@@ -44,9 +55,7 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('fr', ''),
-      ],
+      supportedLocales: const [Locale('fr', '')],
       onGenerateTitle: (BuildContext context) => 'Scan de panneaux',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

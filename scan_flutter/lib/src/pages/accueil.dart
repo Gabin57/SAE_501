@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:scan_flutter/src/pages/connexion.dart';
@@ -5,6 +6,7 @@ import 'package:scan_flutter/src/pages/scan/resultat.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/search_bar.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import '../../dao.class.dart';
 
 class AccueilPage extends StatefulWidget {
   const AccueilPage({super.key});
@@ -18,6 +20,8 @@ class AccueilPage extends StatefulWidget {
 
 class _AccueilPageState extends State<AccueilPage> {
   List<List<Map<String, String>>> donnes = [];
+  List<Map<String, dynamic>> _panneaux = [];
+  bool _isLoading = true;
 
   // Palette et tailles centralisées
   static const _appBarBg = AppColors.appBarBg;
@@ -27,9 +31,58 @@ class _AccueilPageState extends State<AccueilPage> {
   static const _placeholderBg = AppColors.placeholderBg;
   static const _textDark = AppColors.textDark;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadPanneaux();
+  }
+
+  Future<void> _loadPanneaux() async {
+    try {
+      // Ajouter un timeout pour éviter que l'application reste bloquée
+      final panneaux = await DAO.getAll('panneaux')
+          .timeout(const Duration(seconds: 10));
+      
+      if (mounted) {
+        setState(() {
+          _panneaux = List<Map<String, dynamic>>.from(panneaux);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // En cas d'erreur, continuer avec une liste vide plutôt que de bloquer l'application
+      if (mounted) {
+        setState(() {
+          _panneaux = []; // Liste vide si l'API n'est pas disponible
+          _isLoading = false;
+        });
+        
+        // Afficher un message d'erreur moins intrusif
+        final errorMessage = e.toString().contains('Failed to fetch') || 
+                            e.toString().contains('ClientException')
+            ? 'Impossible de se connecter à l\'API. Vérifiez votre connexion réseau.'
+            : 'Erreur lors du chargement des panneaux: ${e.toString().split(':').last.trim()}';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Réessayer',
+              onPressed: _loadPanneaux,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   List<Widget> _buildGridItems() {
-    return [
-      _GridCard(
+    final items = <Widget>[];
+    
+    // Ajouter la carte tutoriel en premier
+    items.add(
+      GridCard(
         title: 'Tutoriel',
         imageUrl:
             'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=640',
@@ -45,9 +98,20 @@ class _AccueilPageState extends State<AccueilPage> {
           );
         },
       ),
-      for (int i = 1; i <= 5; i++)
-        _GridCard(
-          title: 'Image $i',
+    );
+
+    // Ajouter les panneaux chargés depuis la base de données
+    for (final panneau in _panneaux) {
+      final panneauId = panneau['id'] ?? panneau['num'];
+      final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
+      final imageUrl = panneau['image_url'];
+      final imagePath = panneau['image_path'];
+      
+      items.add(
+        GridCard(
+          title: panneauName,
+          imageUrl: imageUrl,
+          imagePath: imagePath,
           tileColor: _tileBg,
           labelColor: _iconMuted,
           labelBg: _labelBg,
@@ -56,11 +120,14 @@ class _AccueilPageState extends State<AccueilPage> {
             Navigator.pushNamed(
               context,
               ResultatPage.routeName,
-              arguments: ResultatArguments(i, "panneaux"),
+              arguments: ResultatArguments(panneauId, "panneaux"),
             );
           },
         ),
-    ];
+      );
+    }
+
+    return items;
   }
 
   // Réservé pour les futures données
@@ -102,31 +169,33 @@ class _AccueilPageState extends State<AccueilPage> {
           ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          // Barre de recherche qui défile avec le contenu
-          SliverToBoxAdapter(
-            child: CustomSearchBar(
-              onSubmitted: (value) {
-                // TODO: brancher la logique de recherche
-              },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : CustomScrollView(
+              slivers: [
+                // Barre de recherche qui défile avec le contenu
+                SliverToBoxAdapter(
+                  child: CustomSearchBar(
+                    onSubmitted: (value) {
+                      // TODO: brancher la logique de recherche
+                    },
+                  ),
+                ),
+                // Grille de cartes
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16.0,
+                      crossAxisSpacing: 16.0,
+                      childAspectRatio: 0.9,
+                    ),
+                    delegate: SliverChildListDelegate(_buildGridItems()),
+                  ),
+                ),
+              ],
             ),
-          ),
-          // Grille de cartes
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16.0,
-                crossAxisSpacing: 16.0,
-                childAspectRatio: 0.9,
-              ),
-              delegate: SliverChildListDelegate(_buildGridItems()),
-            ),
-          ),
-        ],
-      ),
       bottomNavigationBar: const AppBottomNavigation(),
       /* floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
@@ -140,14 +209,16 @@ class _AccueilPageState extends State<AccueilPage> {
 
 // Anciennes versions remplacées par _GridCard
 
-class _GridCard extends StatelessWidget {
-  const _GridCard({
+// Rendu public pour les tests
+class GridCard extends StatelessWidget {
+  const GridCard({
     required this.title,
     required this.tileColor,
     required this.labelColor,
     required this.labelBg,
     required this.placeholderBg,
     this.imageUrl,
+    this.imagePath,
     this.onTap,
   });
 
@@ -157,7 +228,70 @@ class _GridCard extends StatelessWidget {
   final Color labelBg;
   final Color placeholderBg;
   final String? imageUrl;
+  final String? imagePath;
   final VoidCallback? onTap;
+
+  Widget _buildImage() {
+    if (imagePath != null) {
+      // Afficher l'image depuis le chemin local (fichier système)
+      final file = File(imagePath!);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder();
+            },
+          ),
+        );
+      } else {
+        return _buildPlaceholder();
+      }
+    } else if (imageUrl != null) {
+      // Afficher l'image depuis l'URL
+      return ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+        child: Image.network(
+          imageUrl!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildPlaceholder();
+          },
+        ),
+      );
+    } else {
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        color: placeholderBg,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          size: 28,
+          color: labelColor,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,34 +318,7 @@ class _GridCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: imageUrl != null
-                    ? ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                        child: Image.network(
-                          imageUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          color: placeholderBg,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(12),
-                            topRight: Radius.circular(12),
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            size: 28,
-                            color: labelColor,
-                          ),
-                        ),
-                      ),
+                child: _buildImage(),
               ),
               Container(
                 height: 36,

@@ -25,14 +25,14 @@ class _ResultatPageState extends State<ResultatPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final args =
-        ModalRoute.of(context)!.settings.arguments as ResultatArguments;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args != null && args is ResultatArguments) {
+      id = args.id;
+      database = args.database;
 
-    id = args.id;
-    database = args.database;
-
-    // Load data here (not in build)
-    _getDonnees();
+      // Load data here (not in build)
+      _getDonnees();
+    }
   }
 
   List<List<Map<String, String>>> donnes = [];

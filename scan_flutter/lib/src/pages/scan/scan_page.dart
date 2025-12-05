@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/object_detection_service.dart';
+import '../../../dao.class.dart';
+import 'resultat.dart';
 
 class ScanPage extends StatefulWidget {
   static const routeName = '/scan';
@@ -26,7 +28,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   
   bool _isLoading = false;
   File? _imageFile;
-  List<dynamic> _detections = [];
+  List<DetectionResult> _detections = [];
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   int _selectedCameraIndex = 0;
@@ -50,8 +52,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       final cameraStatus = await Permission.camera.request();
       if (cameraStatus != PermissionStatus.granted) {
         if (mounted) {
+          setState(() => _isCameraInitialized = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Les permissions de la caméra sont requises')),
+            const SnackBar(
+              content: Text('Les permissions de la caméra sont requises. Vous pouvez utiliser la galerie à la place.'),
+              duration: Duration(seconds: 3),
+            ),
           );
         }
         return;
@@ -59,8 +65,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       if (widget.cameras.isEmpty) {
         if (mounted) {
+          setState(() => _isCameraInitialized = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucune caméra disponible')),
+            const SnackBar(
+              content: Text('Aucune caméra disponible. Utilisez la galerie pour sélectionner une image.'),
+              duration: Duration(seconds: 3),
+            ),
           );
         }
         return;
@@ -68,16 +78,31 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       await _initializeCameraController(_selectedCameraIndex);
     } catch (e) {
+      // Gérer gracieusement l'erreur de caméra (notamment dans les navigateurs web)
       if (mounted) {
+        setState(() => _isCameraInitialized = false);
+        final errorMessage = e.toString().contains('hardware error') || 
+                            e.toString().contains('not readable')
+            ? 'La caméra n\'est pas disponible. Utilisez la galerie pour sélectionner une image.'
+            : 'Erreur lors de l\'initialisation de la caméra. Utilisez la galerie à la place.';
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'initialisation de la caméra: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
   }
 
   Future<void> _initializeCameraController(int cameraIndex) async {
-    if (cameraIndex >= widget.cameras.length) return;
+    if (cameraIndex >= widget.cameras.length) {
+      if (mounted) {
+        setState(() => _isCameraInitialized = false);
+      }
+      return;
+    }
 
     _cameraController = CameraController(
       widget.cameras[cameraIndex],
@@ -92,10 +117,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         setState(() => _isCameraInitialized = true);
       }
     } catch (e) {
+      // Gérer l'erreur sans bloquer l'application
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'initialisation de la caméra: $e')),
-        );
+        setState(() => _isCameraInitialized = false);
+        // Propager l'erreur pour qu'elle soit gérée dans _initializeCamera
+        // avec un message utilisateur approprié
+        rethrow;
       }
     }
   }
@@ -174,22 +201,78 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         throw Exception('Le fichier image n\'existe pas');
       }
 
-      // Simulation d'une détection
-      await Future.delayed(const Duration(seconds: 1));
+      // Utiliser le service de détection avec le modèle YOLO
+      final detections = await _detectionService.detectObjects(imageFile, conf: 0.5);
+      
+      if (detections.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun panneau détecté dans l\'image')),
+          );
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      // Prendre la première détection (la plus confiante)
+      final bestDetection = detections.first;
+      
       if (mounted) {
         setState(() {
-          _detections = []; // Remplacez par vos résultats de détection
+          _detections = detections;
         });
       }
+
+      // Sauvegarder le panneau dans la base de données et naviguer
+      await _savePanneau(bestDetection, imageFile);
+      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur lors de la détection: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _savePanneau(DetectionResult detection, File imageFile) async {
+    try {
+      // Préparer les données du panneau
+      final panneauData = {
+        'name': detection.label,
+        'description': 'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
+        'type': 'detection_automatique',
+        'source_url': 'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
+        'image_path': imageFile.path,
+      };
+
+      // Sauvegarder le panneau dans la base de données
+      final panneauResponse = await DAO.create('panneaux', panneauData);
+      
+      // Extraire l'ID du panneau créé
+      final panneauId = panneauResponse['id'] ?? panneauResponse['num'] ?? panneauResponse['id_panneau'];
+      
+      if (panneauId == null) {
+        throw Exception('Impossible de récupérer l\'ID du panneau créé');
+      }
+
+      // TODO: Créer la liaison avec le compte utilisateur si connecté
+      // Pour l'instant, on navigue directement vers la page de détails
+      
+      if (mounted) {
+        // Naviguer vers la page de détails du panneau créé
+        Navigator.pushReplacementNamed(
+          context,
+          ResultatPage.routeName,
+          arguments: ResultatArguments(panneauId, 'panneaux'),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+        );
       }
     }
   }
@@ -225,13 +308,42 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           if (_isCameraInitialized && _cameraController != null)
             CameraPreview(_cameraController!)
           else
-            const Center(
-              child: Text(
-                'Caméra non disponible',
-                style: TextStyle(color: Colors.white),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.camera_alt_outlined,
+                    size: 64,
+                    color: Colors.white54,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Caméra non disponible',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'Utilisez la galerie pour sélectionner une image',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ),
             ),
-          _buildScanOverlay(),
+          // Afficher l'overlay uniquement si la caméra est disponible
+          if (_isCameraInitialized && _cameraController != null)
+            _buildScanOverlay(),
           Positioned(
             bottom: 40,
             left: 0,
@@ -317,15 +429,19 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                   color: Colors.white.withOpacity(0.1),
                 ),
               ),
-              // Bouton de capture
+              // Bouton de capture (désactivé si caméra non disponible)
               GestureDetector(
-                onTap: _takePicture,
+                onTap: (_isCameraInitialized && _cameraController != null) 
+                    ? _takePicture 
+                    : null,
                 child: Container(
                   width: 60,
                   height: 60,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white,
+                    color: (_isCameraInitialized && _cameraController != null)
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.3),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black26,

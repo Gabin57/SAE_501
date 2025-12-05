@@ -26,25 +26,44 @@ class DetectionResult {
 }
 
 class ObjectDetectionService {
-  static const String _baseUrl = 'http://votre-serveur:5001';
+  // Utiliser la même URL de base que le DAO
+  static const String _baseUrl = 'http://51.38.64.145:5001';
   
-  Future<List<DetectionResult>> detectObjects(File imageFile) async {
+  Future<List<DetectionResult>> detectObjects(File imageFile, {double conf = 0.5}) async {
     try {
       // Convertir l'image en base64
       final bytes = await imageFile.readAsBytes();
       final base64Image = base64Encode(bytes);
       
-      // Envoyer la requête à l'API
+      // Envoyer la requête à l'API Python avec le modèle YOLO
+      // L'API doit être configurée pour utiliser /var/www/nounours/API/python-api/models/best.pt
       final response = await http.post(
         Uri.parse('$_baseUrl/detect'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'image': 'data:image/jpeg;base64,$base64Image'}),
+        body: jsonEncode({
+          'image': 'data:image/jpeg;base64,$base64Image',
+          'conf': conf, // Seuil de confiance pour YOLO
+        }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final List<dynamic> detections = data['detections'];
+        
+        // Format attendu de l'API YOLO (adapté selon votre implémentation)
+        // Le modèle YOLO retourne généralement une liste de résultats
+        if (data['success'] == true || data.containsKey('results')) {
+          // Si l'API retourne directement les résultats YOLO
+          List<dynamic> detections;
+          if (data.containsKey('results')) {
+            // Format direct depuis YOLO: results[0].boxes.data contient [x1, y1, x2, y2, conf, class]
+            detections = data['results'] is List ? data['results'] : [];
+          } else if (data.containsKey('detections')) {
+            detections = data['detections'];
+          } else {
+            // Format alternatif: adapter selon votre API
+            detections = [];
+          }
+          
           return detections
               .map((d) => DetectionResult.fromJson(d))
               .toList();

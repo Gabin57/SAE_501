@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:scan_flutter/src/pages/connexion.dart';
 import 'package:scan_flutter/src/pages/scan/resultat.dart';
@@ -232,7 +234,9 @@ class GridCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   Widget _buildImage() {
-    if (imagePath != null) {
+    // Sur Web, on ne peut pas utiliser File(), on doit utiliser l'URL réseau
+    // Si on n'est pas sur le web et qu'on a un chemin local, on l'utilise
+    if (!kIsWeb && imagePath != null) {
       // Afficher l'image depuis le chemin local (fichier système)
       final file = File(imagePath!);
       if (file.existsSync()) {
@@ -254,19 +258,41 @@ class GridCard extends StatelessWidget {
         return _buildPlaceholder();
       }
     } else if (imageUrl != null) {
-      // Afficher l'image depuis l'URL
+      // Vérifier si c'est un SVG
+      if (imageUrl!.toLowerCase().endsWith('.svg')) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0), // Padding pour ne pas toucher les bords
+            child: SvgPicture.network(
+              imageUrl!,
+              fit: BoxFit.contain, // Ajuster pour voir le panneau entier
+              width: double.infinity,
+              placeholderBuilder: (BuildContext context) => _buildPlaceholder(),
+            ),
+          ),
+        );
+      }
+      
+      // Afficher l'image depuis l'URL (JPG/PNG/etc)
       return ClipRRect(
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(12),
           topRight: Radius.circular(12),
         ),
-        child: Image.network(
-          imageUrl!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildPlaceholder();
-          },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Image.network(
+            imageUrl!,
+            fit: BoxFit.contain,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder();
+            },
+          ),
         ),
       );
     } else {
@@ -333,6 +359,8 @@ class GridCard extends StatelessWidget {
                 ),
                 child: Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: labelColor),

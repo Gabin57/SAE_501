@@ -41,3 +41,9 @@ Thumbs.db
 *.mocks.dart
 *.gr.dart
 /generated_plugin_registrant.dart
+
+# Temporary Files
+app_temp.py
+
+# Models
+*.pt

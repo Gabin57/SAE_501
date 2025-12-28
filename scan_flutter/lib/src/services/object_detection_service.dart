@@ -33,49 +33,97 @@ class ObjectDetectionService {
     double conf = 0.5,
   }) async {
     try {
+      print('🔍 [DETECTION] Début de la détection d\'objets');
+      print('📁 [DETECTION] Fichier: ${imageFile.path}');
+
+      // Vérifier que le fichier existe
+      if (!await imageFile.exists()) {
+        throw Exception('Le fichier image n\'existe pas: ${imageFile.path}');
+      }
+
       // Convertir l'image en base64
       final bytes = await imageFile.readAsBytes();
-      final base64Image = base64Encode(bytes);
+      print('📊 [DETECTION] Taille de l\'image: ${bytes.length} bytes');
 
-      // Envoyer la requête à l'API Python avec le modèle YOLO
-      // L'API doit être configurée pour utiliser /var/www/nounours/API/python-api/models/best.pt
-      final response = await http.post(
-        Uri.parse('$_baseUrl/detect'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'image': 'data:image/jpeg;base64,$base64Image',
-          'conf': conf, // Seuil de confiance pour YOLO
-        }),
-      );
+      final base64Image = base64Encode(bytes);
+      print('📊 [DETECTION] Taille base64: ${base64Image.length} caractères');
+
+      final requestBody = {
+        'image': 'data:image/jpeg;base64,$base64Image',
+        'conf': conf,
+      };
+
+      print('🌐 [DETECTION] Envoi de la requête à: $_baseUrl/detect');
+      print('⚙️ [DETECTION] Seuil de confiance: $conf');
+
+      // Envoyer la requête à l'API Python avec le modèle YOLO avec timeout
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/detect'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Timeout: L\'API n\'a pas répondu dans les 30 secondes',
+              );
+            },
+          );
+
+      print('📥 [DETECTION] Réponse reçue - Status: ${response.statusCode}');
+      print('📥 [DETECTION] Corps de la réponse: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ [DETECTION] Réponse parsée avec succès');
+        print('📋 [DETECTION] Clés de la réponse: ${data.keys.toList()}');
 
         // Format attendu de l'API YOLO (adapté selon votre implémentation)
-        // Le modèle YOLO retourne généralement une liste de résultats
         if (data['success'] == true || data.containsKey('results')) {
-          // Si l'API retourne directement les résultats YOLO
           List<dynamic> detections;
           if (data.containsKey('results')) {
-            // Format direct depuis YOLO: results[0].boxes.data contient [x1, y1, x2, y2, conf, class]
             detections = data['results'] is List ? data['results'] : [];
+            print('📊 [DETECTION] Nombre de résultats: ${detections.length}');
           } else if (data.containsKey('detections')) {
             detections = data['detections'];
+            print('📊 [DETECTION] Nombre de détections: ${detections.length}');
           } else {
-            // Format alternatif: adapter selon votre API
             detections = [];
+            print(
+              '⚠️ [DETECTION] Aucune clé "results" ou "detections" trouvée',
+            );
           }
 
-          return detections.map((d) => DetectionResult.fromJson(d)).toList();
-        } else {
-          throw Exception(
-            data['error'] ?? 'Erreur inconnue lors de la détection',
+          if (detections.isEmpty) {
+            print('⚠️ [DETECTION] Liste de détections vide');
+            return [];
+          }
+
+          print('🔄 [DETECTION] Conversion des détections en objets...');
+          final results = detections.map((d) {
+            print('   - Détection: $d');
+            return DetectionResult.fromJson(d);
+          }).toList();
+
+          print(
+            '✅ [DETECTION] ${results.length} détection(s) convertie(s) avec succès',
           );
+          return results;
+        } else {
+          final errorMsg =
+              data['error'] ?? 'Erreur inconnue lors de la détection';
+          print('❌ [DETECTION] Erreur API: $errorMsg');
+          throw Exception(errorMsg);
         }
       } else {
+        print('❌ [DETECTION] Erreur HTTP ${response.statusCode}');
         throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
+      print('❌ [DETECTION] Exception: $e');
+      print('❌ [DETECTION] Stack trace: ${StackTrace.current}');
       throw Exception('Échec de la détection d\'objets: $e');
     }
   }
@@ -86,42 +134,100 @@ class ObjectDetectionService {
     double conf = 0.5,
   }) async {
     try {
+      print(
+        '🔍 [DETECTION-BYTES] Début de la détection d\'objets depuis bytes',
+      );
+      print(
+        '📊 [DETECTION-BYTES] Taille de l\'image: ${imageBytes.length} bytes',
+      );
+
       // Convertir les bytes en base64
       final base64Image = base64Encode(imageBytes);
-
-      // Envoyer la requête à l'API Python avec le modèle YOLO
-      final response = await http.post(
-        Uri.parse('$_baseUrl/detect'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'image': 'data:image/jpeg;base64,$base64Image',
-          'conf': conf,
-        }),
+      print(
+        '📊 [DETECTION-BYTES] Taille base64: ${base64Image.length} caractères',
       );
+
+      final requestBody = {
+        'image': 'data:image/jpeg;base64,$base64Image',
+        'conf': conf,
+      };
+
+      print('🌐 [DETECTION-BYTES] Envoi de la requête à: $_baseUrl/detect');
+      print('⚙️ [DETECTION-BYTES] Seuil de confiance: $conf');
+
+      // Envoyer la requête à l'API Python avec le modèle YOLO avec timeout
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/detect'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Timeout: L\'API n\'a pas répondu dans les 30 secondes',
+              );
+            },
+          );
+
+      print(
+        '📥 [DETECTION-BYTES] Réponse reçue - Status: ${response.statusCode}',
+      );
+      print('📥 [DETECTION-BYTES] Corps de la réponse: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ [DETECTION-BYTES] Réponse parsée avec succès');
+        print('📋 [DETECTION-BYTES] Clés de la réponse: ${data.keys.toList()}');
 
         if (data['success'] == true || data.containsKey('results')) {
           List<dynamic> detections;
           if (data.containsKey('results')) {
             detections = data['results'] is List ? data['results'] : [];
+            print(
+              '📊 [DETECTION-BYTES] Nombre de résultats: ${detections.length}',
+            );
           } else if (data.containsKey('detections')) {
             detections = data['detections'];
+            print(
+              '📊 [DETECTION-BYTES] Nombre de détections: ${detections.length}',
+            );
           } else {
             detections = [];
+            print(
+              '⚠️ [DETECTION-BYTES] Aucune clé "results" ou "detections" trouvée',
+            );
           }
 
-          return detections.map((d) => DetectionResult.fromJson(d)).toList();
-        } else {
-          throw Exception(
-            data['error'] ?? 'Erreur inconnue lors de la détection',
+          if (detections.isEmpty) {
+            print('⚠️ [DETECTION-BYTES] Liste de détections vide');
+            return [];
+          }
+
+          print('🔄 [DETECTION-BYTES] Conversion des détections en objets...');
+          final results = detections.map((d) {
+            print('   - Détection: $d');
+            return DetectionResult.fromJson(d);
+          }).toList();
+
+          print(
+            '✅ [DETECTION-BYTES] ${results.length} détection(s) convertie(s) avec succès',
           );
+          return results;
+        } else {
+          final errorMsg =
+              data['error'] ?? 'Erreur inconnue lors de la détection';
+          print('❌ [DETECTION-BYTES] Erreur API: $errorMsg');
+          throw Exception(errorMsg);
         }
       } else {
+        print('❌ [DETECTION-BYTES] Erreur HTTP ${response.statusCode}');
         throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
+      print('❌ [DETECTION-BYTES] Exception: $e');
+      print('❌ [DETECTION-BYTES] Stack trace: ${StackTrace.current}');
       throw Exception('Échec de la détection d\'objets: $e');
     }
   }

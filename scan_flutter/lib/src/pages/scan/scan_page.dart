@@ -11,13 +11,10 @@ import 'resultat.dart';
 
 class ScanPage extends StatefulWidget {
   static const routeName = '/scan';
-  
+
   final List<CameraDescription> cameras;
-  
-  const ScanPage({
-    Key? key,
-    required this.cameras,
-  }) : super(key: key);
+
+  const ScanPage({Key? key, required this.cameras}) : super(key: key);
 
   @override
   _ScanPageState createState() => _ScanPageState();
@@ -26,7 +23,7 @@ class ScanPage extends StatefulWidget {
 class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   final ObjectDetectionService _detectionService = ObjectDetectionService();
   final ImagePicker _picker = ImagePicker();
-  
+
   bool _isLoading = false;
   File? _imageFile;
   List<DetectionResult> _detections = [];
@@ -56,7 +53,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           setState(() => _isCameraInitialized = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Les permissions de la caméra sont requises. Vous pouvez utiliser la galerie à la place.'),
+              content: Text(
+                'Les permissions de la caméra sont requises. Vous pouvez utiliser la galerie à la place.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -69,7 +68,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           setState(() => _isCameraInitialized = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Aucune caméra disponible. Utilisez la galerie pour sélectionner une image.'),
+              content: Text(
+                'Aucune caméra disponible. Utilisez la galerie pour sélectionner une image.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -82,11 +83,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       // Gérer gracieusement l'erreur de caméra (notamment dans les navigateurs web)
       if (mounted) {
         setState(() => _isCameraInitialized = false);
-        final errorMessage = e.toString().contains('hardware error') || 
-                            e.toString().contains('not readable')
+        final errorMessage =
+            e.toString().contains('hardware error') ||
+                e.toString().contains('not readable')
             ? 'La caméra n\'est pas disponible. Utilisez la galerie pour sélectionner une image.'
             : 'Erreur lors de l\'initialisation de la caméra. Utilisez la galerie à la place.';
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -130,18 +132,20 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   Future<void> _toggleCamera() async {
     if (widget.cameras.length < 2) return;
-    
+
     setState(() {
       _isCameraInitialized = false;
       _selectedCameraIndex = (_selectedCameraIndex + 1) % widget.cameras.length;
     });
-    
+
     await _cameraController?.dispose();
     await _initializeCameraController(_selectedCameraIndex);
   }
 
   Future<void> _takePicture() async {
-    if (!_isCameraInitialized || _cameraController == null || !_cameraController!.value.isInitialized) {
+    if (!_isCameraInitialized ||
+        _cameraController == null ||
+        !_cameraController!.value.isInitialized) {
       return;
     }
 
@@ -172,7 +176,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         maxHeight: 1024,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         // Sur le web, on ne peut pas utiliser File(image.path)
         // On utilise directement XFile
@@ -185,7 +189,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la sélection de l\'image: $e')),
+          SnackBar(
+            content: Text('Erreur lors de la sélection de l\'image: $e'),
+          ),
         );
       }
     } finally {
@@ -197,6 +203,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   Future<void> _detectObjects(File imageFile) async {
     try {
+      print('🎯 [SCAN] Début du processus de détection');
+      print('📁 [SCAN] Fichier sélectionné: ${imageFile.path}');
+
       setState(() {
         _isLoading = true;
         _imageFile = imageFile;
@@ -208,13 +217,39 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         throw Exception('Le fichier image n\'existe pas');
       }
 
+      print('✅ [SCAN] Fichier image existe');
+      print('🔄 [SCAN] Appel du service de détection...');
+
       // Utiliser le service de détection avec le modèle YOLO
-      final detections = await _detectionService.detectObjects(imageFile, conf: 0.5);
-      
+      // Essayer d'abord avec un seuil de confiance de 0.25
+      var detections = await _detectionService.detectObjects(
+        imageFile,
+        conf: 0.25,
+      );
+
+      // Si aucune détection, essayer avec un seuil plus bas (0.1)
       if (detections.isEmpty) {
+        print(
+          '⚠️ [SCAN] Aucune détection avec conf=0.25, nouvelle tentative avec conf=0.1...',
+        );
+        detections = await _detectionService.detectObjects(
+          imageFile,
+          conf: 0.1,
+        );
+      }
+
+      print('📊 [SCAN] Détections reçues: ${detections.length}');
+
+      if (detections.isEmpty) {
+        print('⚠️ [SCAN] Aucun panneau détecté');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucun panneau détecté dans l\'image')),
+            const SnackBar(
+              content: Text(
+                'Aucun panneau détecté dans l\'image. Essayez avec une autre image ou assurez-vous que le panneau est bien visible.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
           );
           setState(() => _isLoading = false);
         }
@@ -223,7 +258,10 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       // Prendre la première détection (la plus confiante)
       final bestDetection = detections.first;
-      
+      print(
+        '🏆 [SCAN] Meilleure détection: ${bestDetection.label} (confiance: ${(bestDetection.confidence * 100).toStringAsFixed(1)}%)',
+      );
+
       if (mounted) {
         setState(() {
           _detections = detections;
@@ -231,12 +269,17 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       }
 
       // Sauvegarder le panneau dans la base de données et naviguer
+      print('💾 [SCAN] Sauvegarde du panneau...');
       await _savePanneau(bestDetection, imageFile);
-      
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [SCAN] Erreur lors de la détection: $e');
+      print('❌ [SCAN] Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la détection: $e')),
+          SnackBar(
+            content: Text('Erreur lors de la détection: $e'),
+            duration: const Duration(seconds: 5),
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -245,6 +288,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   Future<void> _detectObjectsFromXFile(XFile imageFile) async {
     try {
+      print('🎯 [SCAN-WEB] Début du processus de détection (Web)');
+      print('📁 [SCAN-WEB] Fichier sélectionné: ${imageFile.name}');
+
       setState(() {
         _isLoading = true;
         _detections = [];
@@ -252,14 +298,40 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       // Sur le web, on utilise les bytes directement depuis XFile
       final bytes = await imageFile.readAsBytes();
-      
+      print('📊 [SCAN-WEB] Taille du fichier: ${bytes.length} bytes');
+
+      print('🔄 [SCAN-WEB] Appel du service de détection...');
+
       // Utiliser le service de détection avec les bytes
-      final detections = await _detectionService.detectObjectsFromBytes(bytes, conf: 0.5);
-      
+      // Essayer d'abord avec un seuil de confiance de 0.25
+      var detections = await _detectionService.detectObjectsFromBytes(
+        bytes,
+        conf: 0.25,
+      );
+
+      // Si aucune détection, essayer avec un seuil plus bas (0.1)
       if (detections.isEmpty) {
+        print(
+          '⚠️ [SCAN-WEB] Aucune détection avec conf=0.25, nouvelle tentative avec conf=0.1...',
+        );
+        detections = await _detectionService.detectObjectsFromBytes(
+          bytes,
+          conf: 0.1,
+        );
+      }
+
+      print('📊 [SCAN-WEB] Détections reçues: ${detections.length}');
+
+      if (detections.isEmpty) {
+        print('⚠️ [SCAN-WEB] Aucun panneau détecté');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucun panneau détecté dans l\'image')),
+            const SnackBar(
+              content: Text(
+                'Aucun panneau détecté dans l\'image. Essayez avec une autre image ou assurez-vous que le panneau est bien visible.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
           );
           setState(() => _isLoading = false);
         }
@@ -268,7 +340,10 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       // Prendre la première détection (la plus confiante)
       final bestDetection = detections.first;
-      
+      print(
+        '🏆 [SCAN-WEB] Meilleure détection: ${bestDetection.label} (confiance: ${(bestDetection.confidence * 100).toStringAsFixed(1)}%)',
+      );
+
       if (mounted) {
         setState(() {
           _detections = detections;
@@ -276,12 +351,17 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       }
 
       // Sauvegarder le panneau dans la base de données et naviguer
+      print('💾 [SCAN-WEB] Sauvegarde du panneau...');
       await _savePanneauFromBytes(bestDetection, bytes, imageFile.name);
-      
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [SCAN-WEB] Erreur lors de la détection: $e');
+      print('❌ [SCAN-WEB] Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la détection: $e')),
+          SnackBar(
+            content: Text('Erreur lors de la détection: $e'),
+            duration: const Duration(seconds: 5),
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -293,25 +373,30 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       // Préparer les données du panneau
       final panneauData = {
         'name': detection.label,
-        'description': 'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
+        'description':
+            'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
         'type': 'detection_automatique',
-        'source_url': 'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
+        'source_url':
+            'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
         'image_path': imageFile.path,
       };
 
       // Sauvegarder le panneau dans la base de données
       final panneauResponse = await DAO.create('panneaux', panneauData);
-      
+
       // Extraire l'ID du panneau créé
-      final panneauId = panneauResponse['id'] ?? panneauResponse['num'] ?? panneauResponse['id_panneau'];
-      
+      final panneauId =
+          panneauResponse['id'] ??
+          panneauResponse['num'] ??
+          panneauResponse['id_panneau'];
+
       if (panneauId == null) {
         throw Exception('Impossible de récupérer l\'ID du panneau créé');
       }
 
       // TODO: Créer la liaison avec le compte utilisateur si connecté
       // Pour l'instant, on navigue directement vers la page de détails
-      
+
       if (mounted) {
         // Naviguer vers la page de détails du panneau créé
         Navigator.pushReplacementNamed(
@@ -329,24 +414,33 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _savePanneauFromBytes(DetectionResult detection, List<int> imageBytes, String imageName) async {
+  Future<void> _savePanneauFromBytes(
+    DetectionResult detection,
+    List<int> imageBytes,
+    String imageName,
+  ) async {
     try {
       // Préparer les données du panneau (sans image_path car on est sur le web)
       final panneauData = {
         'name': detection.label,
-        'description': 'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
+        'description':
+            'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
         'type': 'detection_automatique',
-        'source_url': 'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
+        'source_url':
+            'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
         // Sur le web, on ne peut pas sauvegarder le chemin du fichier
         'image_path': 'web_upload_$imageName',
       };
 
       // Sauvegarder le panneau dans la base de données
       final panneauResponse = await DAO.create('panneaux', panneauData);
-      
+
       // Extraire l'ID du panneau créé
-      final panneauId = panneauResponse['id'] ?? panneauResponse['num'] ?? panneauResponse['id_panneau'];
-      
+      final panneauId =
+          panneauResponse['id'] ??
+          panneauResponse['num'] ??
+          panneauResponse['id_panneau'];
+
       if (panneauId == null) {
         throw Exception('Impossible de récupérer l\'ID du panneau créé');
       }
@@ -422,10 +516,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                     padding: EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
                       'Utilisez la galerie pour sélectionner une image',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -522,8 +613,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
               ),
               // Bouton de capture (désactivé si caméra non disponible)
               GestureDetector(
-                onTap: (_isCameraInitialized && _cameraController != null) 
-                    ? _takePicture 
+                onTap: (_isCameraInitialized && _cameraController != null)
+                    ? _takePicture
                     : null,
                 child: Container(
                   width: 60,
@@ -583,10 +674,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           onPressed: onPressed,
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
       ],
     );
   }

@@ -5,7 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:scan_flutter/src/pages/scan/resultat.dart';
 
 import 'src/pages/accueil.dart';
-import 'src/pages/profil.dart';
+import 'src/pages/connecte/profil.dart';
 import 'src/pages/connexion.dart';
 import 'src/pages/inscription.dart';
 import 'src/pages/infos.dart';

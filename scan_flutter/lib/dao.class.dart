@@ -165,4 +165,65 @@ class DAO {
       throw Exception('Erreur lors de la connexion à l\'API: $e');
     }
   }
+
+  // Méthode de connexion
+  static Future<Map<String, dynamic>> login(String identifiant, String password) async {
+    try {
+      final response = await httpClient.post(
+        Uri.parse('$baseUrl/api/auth/login'),
+        headers: headers,
+        body: jsonEncode({
+          'identifiant': identifiant,
+          'password': password,
+        }),
+      );
+
+      print('Login response: ${response.statusCode} - ${response.body}'); // Debug
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // En cas d'erreur, on essaie de renvoyer le message de l'API
+        try {
+           final errorBody = jsonDecode(response.body);
+           throw Exception(errorBody['error'] ?? 'Échec de la connexion');
+        } catch (_) {
+           throw Exception('Échec de la connexion: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      throw Exception('Erreur de connexion: $e');
+    }
+  }
+
+  // Méthode d'inscription
+  static Future<Map<String, dynamic>> register(String identifiant, String password, String email) async {
+    try {
+      final response = await httpClient.post(
+        Uri.parse('$baseUrl/api/auth/register'),
+        headers: headers,
+        body: jsonEncode({
+          'identifiant': identifiant,
+          'password': password,
+          'email': email,
+        }),
+      );
+
+      print('Register response: ${response.statusCode} - ${response.body}'); // Debug
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        // En cas d'erreur, on essaie de renvoyer le message de l'API
+        try {
+           final errorBody = jsonDecode(response.body);
+           throw Exception(errorBody['error'] ?? 'Échec de l\'inscription');
+        } catch (_) {
+           throw Exception('Échec de l\'inscription: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      throw Exception('Erreur d\'inscription: $e');
+    }
+  }
 }

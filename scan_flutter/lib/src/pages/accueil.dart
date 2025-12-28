@@ -4,10 +4,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:scan_flutter/src/pages/connexion.dart';
+import 'package:scan_flutter/src/pages/connecte/profil.dart';
 import 'package:scan_flutter/src/pages/scan/resultat.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/search_bar.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/src/services/local_profile_service.dart';
 import '../../dao.class.dart';
 
 class AccueilPage extends StatefulWidget {
@@ -162,8 +164,19 @@ class _AccueilPageState extends State<AccueilPage> {
         scrolledUnderElevation: 0,
         actions: [
           IconButton(
-            onPressed: () {
-              Navigator.pushNamed(context, ConnexionPage.routeName);
+            onPressed: () async {
+              // Vérifier si l'utilisateur est authentifié
+              final profile = await LocalProfileService.getProfile();
+              final isAuthenticated = profile['name'] != null && profile['name']!.isNotEmpty;
+              
+              if (!mounted) return;
+              
+              // Naviguer vers la page appropriée
+              if (isAuthenticated) {
+                Navigator.pushNamed(context, ProfilPage.routeName);
+              } else {
+                Navigator.pushNamed(context, ConnexionPage.routeName);
+              }
             },
             iconSize: 30,
             padding: const EdgeInsets.symmetric(horizontal: 12),

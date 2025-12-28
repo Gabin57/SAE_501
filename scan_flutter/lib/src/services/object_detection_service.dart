@@ -80,6 +80,52 @@ class ObjectDetectionService {
     }
   }
 
+  /// Détecte les objets à partir de bytes (pour le web)
+  Future<List<DetectionResult>> detectObjectsFromBytes(
+    List<int> imageBytes, {
+    double conf = 0.5,
+  }) async {
+    try {
+      // Convertir les bytes en base64
+      final base64Image = base64Encode(imageBytes);
+
+      // Envoyer la requête à l'API Python avec le modèle YOLO
+      final response = await http.post(
+        Uri.parse('$_baseUrl/detect'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'image': 'data:image/jpeg;base64,$base64Image',
+          'conf': conf,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true || data.containsKey('results')) {
+          List<dynamic> detections;
+          if (data.containsKey('results')) {
+            detections = data['results'] is List ? data['results'] : [];
+          } else if (data.containsKey('detections')) {
+            detections = data['detections'];
+          } else {
+            detections = [];
+          }
+
+          return detections.map((d) => DetectionResult.fromJson(d)).toList();
+        } else {
+          throw Exception(
+            data['error'] ?? 'Erreur inconnue lors de la détection',
+          );
+        }
+      } else {
+        throw Exception('Erreur HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Échec de la détection d\'objets: $e');
+    }
+  }
+
   // Méthode utilitaire pour redimensionner l'image si nécessaire
   Future<File> resizeImageIfNeeded(File imageFile, {int maxSize = 1024}) async {
     final bytes = await imageFile.readAsBytes();

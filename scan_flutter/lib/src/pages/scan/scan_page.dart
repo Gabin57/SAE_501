@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/object_detection_service.dart';
@@ -173,7 +174,13 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       );
       
       if (image != null) {
-        await _detectObjects(File(image.path));
+        // Sur le web, on ne peut pas utiliser File(image.path)
+        // On utilise directement XFile
+        if (kIsWeb) {
+          await _detectObjectsFromXFile(image);
+        } else {
+          await _detectObjects(File(image.path));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -236,6 +243,51 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _detectObjectsFromXFile(XFile imageFile) async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _detections = [];
+      });
+
+      // Sur le web, on utilise les bytes directement depuis XFile
+      final bytes = await imageFile.readAsBytes();
+      
+      // Utiliser le service de détection avec les bytes
+      final detections = await _detectionService.detectObjectsFromBytes(bytes, conf: 0.5);
+      
+      if (detections.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun panneau détecté dans l\'image')),
+          );
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      // Prendre la première détection (la plus confiante)
+      final bestDetection = detections.first;
+      
+      if (mounted) {
+        setState(() {
+          _detections = detections;
+        });
+      }
+
+      // Sauvegarder le panneau dans la base de données et naviguer
+      await _savePanneauFromBytes(bestDetection, bytes, imageFile.name);
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la détection: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _savePanneau(DetectionResult detection, File imageFile) async {
     try {
       // Préparer les données du panneau
@@ -260,6 +312,45 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       // TODO: Créer la liaison avec le compte utilisateur si connecté
       // Pour l'instant, on navigue directement vers la page de détails
       
+      if (mounted) {
+        // Naviguer vers la page de détails du panneau créé
+        Navigator.pushReplacementNamed(
+          context,
+          ResultatPage.routeName,
+          arguments: ResultatArguments(panneauId, 'panneaux'),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _savePanneauFromBytes(DetectionResult detection, List<int> imageBytes, String imageName) async {
+    try {
+      // Préparer les données du panneau (sans image_path car on est sur le web)
+      final panneauData = {
+        'name': detection.label,
+        'description': 'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
+        'type': 'detection_automatique',
+        'source_url': 'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
+        // Sur le web, on ne peut pas sauvegarder le chemin du fichier
+        'image_path': 'web_upload_$imageName',
+      };
+
+      // Sauvegarder le panneau dans la base de données
+      final panneauResponse = await DAO.create('panneaux', panneauData);
+      
+      // Extraire l'ID du panneau créé
+      final panneauId = panneauResponse['id'] ?? panneauResponse['num'] ?? panneauResponse['id_panneau'];
+      
+      if (panneauId == null) {
+        throw Exception('Impossible de récupérer l\'ID du panneau créé');
+      }
+
       if (mounted) {
         // Naviguer vers la page de détails du panneau créé
         Navigator.pushReplacementNamed(

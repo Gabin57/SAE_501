@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/pages/inscription.dart';
+import 'package:scan_flutter/src/pages/accueil.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/src/services/local_profile_service.dart';
+import '../../dao.class.dart';
 
 class ConnexionPage extends StatefulWidget {
   const ConnexionPage({super.key});
@@ -16,12 +19,72 @@ class _ConnexionPageState extends State<ConnexionPage> {
   final TextEditingController _identifiantController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _identifiantController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (_identifiantController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez remplir tous les champs'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Appel à l'API via le DAO
+      final response = await DAO.login(_identifiantController.text, _passwordController.text);
+      
+      if (!mounted) return;
+
+      // Sauvegarder le profil localement pour maintenir la session
+      final user = response['user'];
+      await LocalProfileService.saveProfile(
+        name: user['identifiant'] ?? _identifiantController.text,
+        email: user['email'] ?? '',
+        theme: 'light',
+      );
+
+      // Succès
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connexion réussie'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Redirection vers l'accueil
+      Navigator.pushReplacementNamed(context, AccueilPage.routeName);
+
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -132,9 +195,7 @@ class _ConnexionPageState extends State<ConnexionPage> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: implémenter la logique de connexion
-                          },
+                          onPressed: _isLoading ? null : _login,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey.shade700,
                             foregroundColor: Colors.white,
@@ -143,7 +204,13 @@ class _ConnexionPageState extends State<ConnexionPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text('Connexion'),
+                          child: _isLoading 
+                            ? const SizedBox(
+                                height: 20, 
+                                width: 20, 
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                              ) 
+                            : const Text('Connexion'),
                         ),
                       ),
                     ],

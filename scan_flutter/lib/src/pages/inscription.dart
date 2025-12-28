@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/pages/connexion.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import '../../dao.class.dart'; // Import DAO
 
 class InscriptionPage extends StatefulWidget {
   const InscriptionPage({super.key});
@@ -17,6 +18,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
   final TextEditingController _identifiantController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -24,6 +26,66 @@ class _InscriptionPageState extends State<InscriptionPage> {
     _identifiantController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _register() async {
+    if (_emailController.text.isEmpty || 
+        _identifiantController.text.isEmpty || 
+        _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez remplir tous les champs'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Appel à l'API via le DAO avec la méthode register
+      await DAO.register(
+        _identifiantController.text,
+        _passwordController.text,
+        _emailController.text,
+      );
+      
+      if (!mounted) return;
+
+      // Succès
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Inscription réussie ! Vous pouvez vous connecter.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Redirection vers la page de connexion après un court délai
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, ConnexionPage.routeName);
+
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -134,9 +196,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: implémenter la logique d'inscription
-                          },
+                          onPressed: _isLoading ? null : _register,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey.shade700,
                             foregroundColor: Colors.white,
@@ -145,7 +205,13 @@ class _InscriptionPageState extends State<InscriptionPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text('Inscription'),
+                          child: _isLoading 
+                            ? const SizedBox(
+                                height: 20, 
+                                width: 20, 
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                              )
+                            : const Text('Inscription'),
                         ),
                       ),
                       const SizedBox(width: 16),

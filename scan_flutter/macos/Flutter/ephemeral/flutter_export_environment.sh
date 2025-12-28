@@ -1,7 +1,7 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=C:\Users\nerfc\AppData\Local\flutter"
-export "FLUTTER_APPLICATION_PATH=C:\Users\nerfc\Desktop\BUT\3A\SAE_501\scan_flutter"
+export "FLUTTER_ROOT=/home/debian/development/flutter"
+export "FLUTTER_APPLICATION_PATH=/var/www/nounours/SAE_501/scan_flutter"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=1.0.0"

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:scan_flutter/src/pages/connexion.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/dao.class.dart';
 
 class ResultatArguments {
   final int id;
@@ -20,6 +21,8 @@ class ResultatPage extends StatefulWidget {
 class _ResultatPageState extends State<ResultatPage> {
   late int id;
   late String database;
+  bool _isLoading = true;
+  Map<String, dynamic>? _panneauData;
 
   @override
   void didChangeDependencies() {
@@ -29,75 +32,239 @@ class _ResultatPageState extends State<ResultatPage> {
     if (args != null && args is ResultatArguments) {
       id = args.id;
       database = args.database;
-
-      // Load data here (not in build)
-      _getDonnees();
+      _loadPanneauData();
     }
   }
 
-  List<List<Map<String, String>>> donnes = [];
+  Future<void> _loadPanneauData() async {
+    try {
+      final data = await DAO.getById(database, id);
+      if (mounted) {
+        setState(() {
+          _panneauData = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Erreur lors du chargement du panneau: $e');
+      // Utiliser des données de test si l'API n'est pas accessible
+      if (mounted) {
+        setState(() {
+          _panneauData = {
+            'id': id,
+            'name': 'Image $id',
+            'description':
+                'Description description description description description description description description description description description description',
+            'image_path': null,
+          };
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
-  void _getDonnees() {
-    // TODO: Charger les données depuis la BDD
-    print(
-      "Changement des données de la capture $id depuis la base de données $database",
+  void _handleAjouter() {
+    // Rediriger vers la page de connexion si non connecté
+    Navigator.pushNamed(context, ConnexionPage.routeName);
+  }
+
+  void _handleSupprimer() {
+    // Afficher un message indiquant qu'il faut être connecté
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Vous devez être connecté pour supprimer un panneau'),
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(
+        0xFFB0BEC5,
+      ), // Gris-bleu comme dans la maquette
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text("Détails"),
+        backgroundColor: const Color(0xFFB0BEC5),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Nouveau Panneau',
+          style: TextStyle(color: Colors.black87, fontSize: 16),
+        ),
         actions: [
           IconButton(
             onPressed: () {
               Navigator.pushNamed(context, ConnexionPage.routeName);
             },
-            icon: const Icon(Icons.person_outlined),
+            icon: const Icon(Icons.person_outline, color: Colors.black87),
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          children: [
-            /* Text("ID reçu : $id"),
-            Text("DB reçue : $database"), */
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Image du panneau
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        height: 250,
+                        color: const Color(0xFFE8E8E8),
+                        child: _panneauData?['image_path'] != null
+                            ? Image.network(
+                                _panneauData!['image_path'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildImagePlaceholder();
+                                },
+                              )
+                            : _buildImagePlaceholder(),
+                      ),
+                    ),
 
-            // Placeholder before you build real UI
-            Expanded(
-              child: ListView(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
+                    Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Label et pourcentage
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _panneauData?['name'] ?? 'Image $id',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                '100%',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Description
+                          Text(
+                            _panneauData?['description'] ??
+                                'Description description description description description description description description description description description description',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: Colors.black87,
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Boutons d'action
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              // Bouton Ajouter
+                              _buildActionButton(
+                                icon: Icons.add,
+                                label: 'Ajouter',
+                                onPressed: _handleAjouter,
+                              ),
+
+                              // Bouton Supprimer
+                              _buildActionButton(
+                                icon: Icons.delete_outline,
+                                label: 'Supprimer',
+                                onPressed: _handleSupprimer,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Image(
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      image: ExactAssetImage("tutoriel.jpg"),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [Text("Capture tutoriel"), Text("100%")],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    "Ceci est la description du panneau d'après notre base de donnée.",
-                  ),
-                  const SizedBox(height: 20),
-                  Text("Scanné par : Vous"),
-                ],
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
       bottomNavigationBar: const AppBottomNavigation(),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Center(
+      child: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: const Color(0xFF6D7278),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.image, size: 50, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.black54, width: 1.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            icon: Icon(icon, size: 24),
+            onPressed: onPressed,
+            color: Colors.black87,
+            padding: EdgeInsets.zero,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

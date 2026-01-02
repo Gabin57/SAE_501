@@ -55,6 +55,8 @@ class _ResultatPageState extends State<ResultatPage> {
             'name': 'Image $id',
             'description':
                 'Description description description description description description description description description description description description',
+            'image_url':
+                'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/France_road_sign_AB4.svg/200px-France_road_sign_AB4.svg.png',
             'image_path': null,
           };
           _isLoading = false;
@@ -106,117 +108,164 @@ class _ResultatPageState extends State<ResultatPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Image du panneau
-                    ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                      child: Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: const Color(0xFFE8E8E8),
-                        child: _panneauData?['image_path'] != null
-                            ? Image.network(
-                                _panneauData!['image_path'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return _buildImagePlaceholder();
-                                },
-                              )
-                            : _buildImagePlaceholder(),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Image du panneau
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          height: 250,
+                          color: const Color(0xFFE8E8E8),
+                          child: _buildPanneauImage(),
+                        ),
                       ),
-                    ),
 
-                    Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Label et pourcentage
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _panneauData?['name'] ?? 'Image $id',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Label et pourcentage
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    _panneauData?['name'] ?? 'Image $id',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '100%',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green[700],
+                                const SizedBox(width: 8),
+                                Text(
+                                  '100%',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[700],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Description
-                          Text(
-                            _panneauData?['description'] ??
-                                'Description description description description description description description description description description description description',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              height: 1.4,
-                              color: Colors.black87,
+                              ],
                             ),
-                          ),
 
-                          const SizedBox(height: 20),
+                            const SizedBox(height: 12),
 
-                          // Boutons d'action
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              // Bouton Ajouter
-                              _buildActionButton(
-                                icon: Icons.add,
-                                label: 'Ajouter',
-                                onPressed: _handleAjouter,
+                            // Description
+                            Text(
+                              _panneauData?['description'] ??
+                                  'Description description description description description description description description description description description description',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: Colors.black87,
                               ),
+                            ),
 
-                              // Bouton Supprimer
-                              _buildActionButton(
-                                icon: Icons.delete_outline,
-                                label: 'Supprimer',
-                                onPressed: _handleSupprimer,
-                              ),
-                            ],
-                          ),
-                        ],
+                            const SizedBox(height: 20),
+
+                            // Boutons d'action
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                // Bouton Ajouter
+                                _buildActionButton(
+                                  icon: Icons.add,
+                                  label: 'Ajouter',
+                                  onPressed: _handleAjouter,
+                                ),
+
+                                // Bouton Supprimer
+                                _buildActionButton(
+                                  icon: Icons.delete_outline,
+                                  label: 'Supprimer',
+                                  onPressed: _handleSupprimer,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
       bottomNavigationBar: const AppBottomNavigation(),
     );
+  }
+
+  Widget _buildPanneauImage() {
+    final imageUrl = _panneauData?['image_url'];
+    final imagePath = _panneauData?['image_path'];
+
+    // Priorité: image_url > image_path > placeholder
+    if (imageUrl != null && imageUrl.toString().isNotEmpty) {
+      // Vérifier si c'est un SVG
+      if (imageUrl.toString().toLowerCase().endsWith('.svg')) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildImagePlaceholder();
+            },
+          ),
+        );
+      }
+
+      // Image normale (JPG/PNG)
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildImagePlaceholder();
+          },
+        ),
+      );
+    } else if (imagePath != null && imagePath.toString().isNotEmpty) {
+      // Essayer d'afficher depuis le chemin local
+      // Note: Sur web, cela ne fonctionnera pas, mais on essaie quand même
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Image.network(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildImagePlaceholder();
+          },
+        ),
+      );
+    } else {
+      return _buildImagePlaceholder();
+    }
   }
 
   Widget _buildImagePlaceholder() {

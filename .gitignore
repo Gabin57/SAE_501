@@ -1,7 +1,7 @@
 # Fichiers et dossiers système
 .DS_Store
 Thumbs.db
-
+check_db.py 
 # Dossiers de build Flutter
 /coverage/
 /build/

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -420,7 +421,14 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     String imageName,
   ) async {
     try {
-      // Préparer les données du panneau (sans image_path car on est sur le web)
+      // Upload l'image au serveur d'abord
+      print('📤 Uploading image to server...');
+      final imageUrl = await DAO.uploadImage(
+        Uint8List.fromList(imageBytes),
+        'web_upload_$imageName',
+      );
+
+      // Préparer les données du panneau
       final panneauData = {
         'name': detection.label,
         'description':
@@ -428,9 +436,17 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         'type': 'detection_automatique',
         'source_url':
             'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
-        // Sur le web, on ne peut pas sauvegarder le chemin du fichier
-        'image_path': 'web_upload_$imageName',
       };
+
+      // Ajouter l'URL de l'image si l'upload a réussi
+      if (imageUrl != null) {
+        panneauData['image_url'] = imageUrl;
+        panneauData['image_path'] = 'web_upload_$imageName';
+      } else {
+        // Si l'upload échoue, sauvegarder quand même le panneau sans image
+        print('⚠️ Image upload failed, saving panel without image');
+        panneauData['image_path'] = 'web_upload_$imageName';
+      }
 
       // Sauvegarder le panneau dans la base de données
       final panneauResponse = await DAO.create('panneaux', panneauData);

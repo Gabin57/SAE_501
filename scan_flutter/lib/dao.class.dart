@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 class DAO {
   // URL de base de votre API
-  static const String baseUrl = 'http://51.38.64.145:5001';  
+  static const String baseUrl = 'http://51.38.64.145:5001';
   // Pour émulateur Android
   // Pour émulateur iOS ou appareil physique, utilisez l'IP de votre machine :
   // static const String baseUrl = 'http://VOTRE_IP_LOCALE:5000';
@@ -35,11 +36,13 @@ class DAO {
         Uri.parse('$baseUrl/$table?action=getAll'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Échec du chargement des données: ${response.statusCode}');
+        throw Exception(
+          'Échec du chargement des données: ${response.statusCode}',
+        );
       }
     } catch (e) {
       throw Exception('Erreur lors de la connexion à l\'API: $e');
@@ -51,7 +54,7 @@ class DAO {
     try {
       // Nettoyer les données avant envoi
       final cleanedData = Map<String, dynamic>.from(data);
-      
+
       // Gestion spécifique par table
       switch (table.toUpperCase()) {
         case 'COMPTES':
@@ -61,17 +64,18 @@ class DAO {
           }
           // Ajouter un numéro unique si nécessaire
           if (!cleanedData.containsKey('num')) {
-            cleanedData['num'] = DateTime.now().millisecondsSinceEpoch % 1000000;
+            cleanedData['num'] =
+                DateTime.now().millisecondsSinceEpoch % 1000000;
           }
           break;
-          
+
         case 'PANNEAUX':
           // Supprimer le champ code s'il n'existe pas
           if (data.containsKey('code') && !data.containsKey('nom')) {
             cleanedData['nom'] = cleanedData.remove('code');
           }
           break;
-          
+
         case 'LIAISONS_PANNEAUX':
           // Corriger le nom du champ si nécessaire
           if (data.containsKey('id_panneau_1')) {
@@ -84,22 +88,23 @@ class DAO {
       }
 
       print('Envoi des données à l\'API: $cleanedData'); // Debug
-      
+
       final response = await httpClient.post(
         Uri.parse('$baseUrl/$table'),
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
+        headers: {...headers, 'Content-Type': 'application/json'},
         body: jsonEncode(cleanedData),
       );
-      
-      print('Réponse de l\'API: ${response.statusCode} - ${response.body}'); // Debug
-      
+
+      print(
+        'Réponse de l\'API: ${response.statusCode} - ${response.body}',
+      ); // Debug
+
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Échec de la création (${response.statusCode}): ${response.body}');
+        throw Exception(
+          'Échec de la création (${response.statusCode}): ${response.body}',
+        );
       }
     } catch (e) {
       print('Erreur lors de la création: $e'); // Debug
@@ -115,7 +120,7 @@ class DAO {
         headers: headers,
         body: jsonEncode(data),
       );
-      
+
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         return result['status'] == 'success';
@@ -134,7 +139,7 @@ class DAO {
         Uri.parse('$baseUrl/$table/$id'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         return result['status'] == 'success';
@@ -153,7 +158,7 @@ class DAO {
         Uri.parse('$baseUrl/$table/$id'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else if (response.statusCode == 404) {
@@ -167,28 +172,30 @@ class DAO {
   }
 
   // Méthode de connexion
-  static Future<Map<String, dynamic>> login(String identifiant, String password) async {
+  static Future<Map<String, dynamic>> login(
+    String identifiant,
+    String password,
+  ) async {
     try {
       final response = await httpClient.post(
         Uri.parse('$baseUrl/api/auth/login'),
         headers: headers,
-        body: jsonEncode({
-          'identifiant': identifiant,
-          'password': password,
-        }),
+        body: jsonEncode({'identifiant': identifiant, 'password': password}),
       );
 
-      print('Login response: ${response.statusCode} - ${response.body}'); // Debug
+      print(
+        'Login response: ${response.statusCode} - ${response.body}',
+      ); // Debug
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
         // En cas d'erreur, on essaie de renvoyer le message de l'API
         try {
-           final errorBody = jsonDecode(response.body);
-           throw Exception(errorBody['error'] ?? 'Échec de la connexion');
+          final errorBody = jsonDecode(response.body);
+          throw Exception(errorBody['error'] ?? 'Échec de la connexion');
         } catch (_) {
-           throw Exception('Échec de la connexion: ${response.statusCode}');
+          throw Exception('Échec de la connexion: ${response.statusCode}');
         }
       }
     } catch (e) {
@@ -197,7 +204,11 @@ class DAO {
   }
 
   // Méthode d'inscription
-  static Future<Map<String, dynamic>> register(String identifiant, String password, String email) async {
+  static Future<Map<String, dynamic>> register(
+    String identifiant,
+    String password,
+    String email,
+  ) async {
     try {
       final response = await httpClient.post(
         Uri.parse('$baseUrl/api/auth/register'),
@@ -209,21 +220,59 @@ class DAO {
         }),
       );
 
-      print('Register response: ${response.statusCode} - ${response.body}'); // Debug
+      print(
+        'Register response: ${response.statusCode} - ${response.body}',
+      ); // Debug
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
         // En cas d'erreur, on essaie de renvoyer le message de l'API
         try {
-           final errorBody = jsonDecode(response.body);
-           throw Exception(errorBody['error'] ?? 'Échec de l\'inscription');
+          final errorBody = jsonDecode(response.body);
+          throw Exception(errorBody['error'] ?? 'Échec de l\'inscription');
         } catch (_) {
-           throw Exception('Échec de l\'inscription: ${response.statusCode}');
+          throw Exception('Échec de l\'inscription: ${response.statusCode}');
         }
       }
     } catch (e) {
       throw Exception('Erreur d\'inscription: $e');
+    }
+  }
+
+  // Méthode pour uploader une image
+  static Future<String?> uploadImage(
+    Uint8List imageBytes,
+    String filename,
+  ) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/upload-image'),
+      );
+
+      // Ajouter le fichier image
+      request.files.add(
+        http.MultipartFile.fromBytes('image', imageBytes, filename: filename),
+      );
+
+      print('📤 Uploading image: $filename');
+
+      var response = await request.send();
+
+      if (response.statusCode == 201) {
+        var responseData = await response.stream.bytesToString();
+        var jsonData = jsonDecode(responseData);
+        final imageUrl = jsonData['image_url'];
+        print('✅ Image uploaded successfully: $imageUrl');
+        return imageUrl;
+      } else {
+        print('❌ Image upload failed: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error uploading image: $e');
+      return null;
     }
   }
 }

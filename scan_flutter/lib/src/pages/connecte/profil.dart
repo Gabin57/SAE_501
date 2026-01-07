@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../style/app_theme.dart';
+import '../../style/colors.dart';
 import '../../services/local_profile_service.dart';
+import 'package:scan_flutter/src/widgets/custom_app_bar.dart';
+import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import '../connexion.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -11,12 +14,9 @@ class ProfilPage extends StatefulWidget {
 }
 
 class _ProfilPageState extends State<ProfilPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  String _theme = 'light';
-  bool _editing = false;
   bool _loading = true;
+  String _name = '';
+  String _email = '';
 
   @override
   void initState() {
@@ -26,124 +26,133 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Future<void> _loadProfile() async {
     final profile = await LocalProfileService.getProfile();
+    if (!mounted) return;
     setState(() {
-      _nameController.text = profile['name'] ?? '';
-      _emailController.text = profile['email'] ?? '';
-      _theme = profile['theme'] ?? 'light';
+      _name = profile['name'] ?? 'Anonyme';
+      _email = profile['email'] ?? 'adresse@gmail.com';
       _loading = false;
     });
-  }
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-    await LocalProfileService.saveProfile(
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      theme: _theme,
-    );
-    setState(() {
-      _editing = false;
-    });
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil enregistré localement')),
-    );
   }
 
   Future<void> _logout() async {
     await LocalProfileService.clearProfile();
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/connexion');
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(ConnexionPage.routeName, (route) => false);
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    super.dispose();
+  void _handleEdit() {
+    // Placeholder for edit functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Fonctionnalité de modification à venir')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
+      backgroundColor: AppColors.white, // White background for body
+      appBar: CustomAppBar(
+        title: 'Profil',
+        showProfileIcon: false, // Don't show profile icon on profile page
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: AppColors.textDark),
+            onPressed: _logout,
+            tooltip: 'Déconnexion',
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(AppTheme.mediumPadding),
-              child: Form(
-                key: _formKey,
+          : Center(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors
+                      .placeholderBg, // Use consistent placeholder background
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 8),
-                    CircleAvatar(
-                      radius: 48,
-                      backgroundColor: AppTheme.surfaceColor,
-                      child: Text(
-                        _nameController.text.isNotEmpty
-                            ? _nameController.text[0].toUpperCase()
-                            : 'U',
-                        style: const TextStyle(fontSize: 32),
+                    // Name
+                    Text(
+                      _name.isNotEmpty ? _name : 'Anonyme',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _nameController,
-                      enabled: _editing,
-                      decoration: const InputDecoration(labelText: 'Nom'),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Entrez un nom';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _emailController,
-                      enabled: _editing,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Entrez un email';
-                        if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(v)) return 'Email invalide';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Thème local'),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _theme,
-                          items: const [
-                            DropdownMenuItem(value: 'light', child: Text('Clair')),
-                            DropdownMenuItem(value: 'dark', child: Text('Sombre')),
-                            DropdownMenuItem(value: 'system', child: Text('Système')),
-                          ],
-                          onChanged: _editing
-                              ? (v) {
-                                  if (v == null) return;
-                                  setState(() => _theme = v);
-                                }
-                              : null,
-                        ),
+
+                    const SizedBox(height: 32),
+
+                    // Email Section
+                    const Text(
+                      'Email :',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    Text(
+                      _email.isNotEmpty ? _email : 'adresse@gmail.com',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+
+                    const SizedBox(height: 48),
+
+                    // Buttons
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        ElevatedButton.icon(
-                          onPressed: _editing ? _saveProfile : () => setState(() => _editing = true),
-                          icon: Icon(_editing ? Icons.save : Icons.edit),
-                          label: Text(_editing ? 'Sauvegarder' : 'Modifier'),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _logout,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  AppColors.error, // Use defined error color
+                              foregroundColor: AppColors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Supprimer'),
+                          ),
                         ),
-                        TextButton.icon(
-                          onPressed: _logout,
-                          icon: const Icon(Icons.exit_to_app),
-                          label: const Text('Déconnexion'),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _handleEdit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors
+                                  .textDark, // Use dark text color for button background
+                              foregroundColor: AppColors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Modifier'),
+                          ),
                         ),
                       ],
                     ),
@@ -151,6 +160,9 @@ class _ProfilPageState extends State<ProfilPage> {
                 ),
               ),
             ),
+      bottomNavigationBar: const AppBottomNavigation(
+        currentIndex: 2,
+      ), // Assuming Profile might be accessible via index, or keep strictly redundant if no tab
     );
   }
 }

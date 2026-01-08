@@ -33,13 +33,13 @@ class InfosPage extends StatelessWidget {
               name: 'Gabin HUMBERT',
               role: 'Développeur principal',
               description:
-                  'Conception et architecture de l\'application, intégration de la détection d\'objets.',
+                  'Conception d\'architecture de l\'application et de l\'API, tests, scraping, intégration de la détection d\'objets.',
             ),
             _memberCard(
               name: 'Margaux HALLER',
               role: 'Développeuse API et mobile',
               description:
-                  'Développement de Flutter et API, tests, scraping, base de données et documentation.',
+                  'Développement de Flutter et API, base de données et documentation.',
             ),
             _memberCard(
               name: 'Zain-Alabaidine AIT BAMMOU',
@@ -51,10 +51,6 @@ class InfosPage extends StatelessWidget {
             const Text(
               'Remarques',
               style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Les données de profil et préférences sont stockées localement sur l\'appareil et ne sont pas transmises par défaut.',
             ),
           ],
         ),

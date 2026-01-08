@@ -9,6 +9,7 @@ import 'src/pages/connecte/profil.dart';
 import 'src/pages/connexion.dart';
 import 'src/pages/inscription.dart';
 import 'src/pages/infos.dart';
+import 'src/pages/explorer.dart';
 import 'src/pages/scan/scan_page.dart';
 import 'src/style/app_theme.dart';
 
@@ -73,6 +74,8 @@ class MyApp extends StatelessWidget {
                 return const InscriptionPage();
               case InfosPage.routeName:
                 return const InfosPage();
+              case ExplorerPage.routeName:
+                return const ExplorerPage();
               case ProfilPage.routeName:
                 return const ProfilPage();
               case ResultatPage.routeName:

@@ -29,7 +29,8 @@ class _ConnexionPageState extends State<ConnexionPage> {
   }
 
   Future<void> _login() async {
-    if (_identifiantController.text.isEmpty || _passwordController.text.isEmpty) {
+    if (_identifiantController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez remplir tous les champs'),
@@ -45,16 +46,37 @@ class _ConnexionPageState extends State<ConnexionPage> {
 
     try {
       // Appel à l'API via le DAO
-      final response = await DAO.login(_identifiantController.text, _passwordController.text);
-      
+      final response = await DAO.login(
+        _identifiantController.text,
+        _passwordController.text,
+      );
+
       if (!mounted) return;
 
-      // Sauvegarder le profil localement pour maintenir la session
+      // Récupérer le num de l'utilisateur depuis la table COMPTES
       final user = response['user'];
+      final userEmail = user['email'] ?? '';
+
+      int? userNum;
+      try {
+        // Récupérer tous les comptes et trouver celui qui correspond
+        final comptes = await DAO.getAll('comptes');
+        final compte = comptes.firstWhere(
+          (c) => c['email'] == userEmail,
+          orElse: () => {},
+        );
+        userNum = compte['num'] as int?;
+        print('✅ User num retrieved: $userNum');
+      } catch (e) {
+        print('⚠️ Could not retrieve user num: $e');
+      }
+
+      // Sauvegarder le profil localement pour maintenir la session
       await LocalProfileService.saveProfile(
         name: user['identifiant'] ?? _identifiantController.text,
-        email: user['email'] ?? '',
+        email: userEmail,
         theme: 'light',
+        num: userNum,
       );
 
       // Succès
@@ -67,10 +89,9 @@ class _ConnexionPageState extends State<ConnexionPage> {
 
       // Redirection vers l'accueil
       Navigator.pushReplacementNamed(context, AccueilPage.routeName);
-
     } catch (e) {
       if (!mounted) return;
-      
+
       // Erreur
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -97,8 +118,9 @@ class _ConnexionPageState extends State<ConnexionPage> {
         surfaceTintColor: Colors.transparent,
         foregroundColor: textDark,
         iconTheme: const IconThemeData(color: textDark),
-        titleTextStyle:
-            Theme.of(context).textTheme.titleLarge?.copyWith(color: textDark),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: textDark),
         title: const Text('Connexion'),
         automaticallyImplyLeading: false,
         elevation: 0,
@@ -121,9 +143,9 @@ class _ConnexionPageState extends State<ConnexionPage> {
                   Text(
                     'Connexion',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: AppColors.textDark,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -179,7 +201,9 @@ class _ConnexionPageState extends State<ConnexionPage> {
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pushNamed(
-                                context, InscriptionPage.routeName);
+                              context,
+                              InscriptionPage.routeName,
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey.shade700,
@@ -204,13 +228,16 @@ class _ConnexionPageState extends State<ConnexionPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: _isLoading 
-                            ? const SizedBox(
-                                height: 20, 
-                                width: 20, 
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                              ) 
-                            : const Text('Connexion'),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Connexion'),
                         ),
                       ),
                     ],
@@ -225,5 +252,3 @@ class _ConnexionPageState extends State<ConnexionPage> {
     );
   }
 }
-
-

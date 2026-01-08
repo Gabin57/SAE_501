@@ -77,7 +77,6 @@ class _CustomSearchBarState extends State<CustomSearchBar> {
     }
   }
 
-
   void _onSubmitted(String value) {
     if (widget.onSubmitted != null) {
       widget.onSubmitted!(value);
@@ -120,8 +119,10 @@ class _CustomSearchBarState extends State<CustomSearchBar> {
           enabled: widget.enabled,
           autofocus: widget.autofocus,
           textInputAction: widget.textInputAction ?? TextInputAction.search,
+          onChanged: widget.onChanged,
           onSubmitted: _onSubmitted,
-          style: widget.textStyle ??
+          style:
+              widget.textStyle ??
               const TextStyle(
                 color: Color(0xFF2E3135),
                 fontSize: 16,
@@ -138,10 +139,12 @@ class _CustomSearchBarState extends State<CustomSearchBar> {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            suffixIcon: widget.suffixIcon ??
+            suffixIcon:
+                widget.suffixIcon ??
                 const Icon(Icons.search, color: AppColors.iconMuted, size: 24),
             isDense: true,
-            contentPadding: widget.contentPadding ??
+            contentPadding:
+                widget.contentPadding ??
                 const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
             filled: false,
             fillColor: Colors.transparent,
@@ -151,5 +154,4 @@ class _CustomSearchBarState extends State<CustomSearchBar> {
       ),
     );
   }
-
 }

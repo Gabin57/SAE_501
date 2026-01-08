@@ -8,6 +8,7 @@ import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/widgets/custom_app_bar.dart';
 import 'package:scan_flutter/src/widgets/search_bar.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/src/services/local_profile_service.dart';
 import '../../dao.class.dart';
 
 class AccueilPage extends StatefulWidget {
@@ -24,6 +25,31 @@ class _AccueilPageState extends State<AccueilPage> {
   List<List<Map<String, String>>> donnes = [];
   List<Map<String, dynamic>> _panneaux = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  bool _isAuthenticated = false;
+  int? _currentUserId;
+
+  // Getter for filtered panels based on search query
+  List<Map<String, dynamic>> get _filteredPanneaux {
+    // Return empty list if panels haven't loaded yet
+    if (_panneaux.isEmpty) {
+      return [];
+    }
+
+    if (_searchQuery.isEmpty) {
+      return _panneaux;
+    }
+
+    return _panneaux.where((panneau) {
+      final name = (panneau['name'] ?? '').toString().toLowerCase();
+      final description = (panneau['description'] ?? '')
+          .toString()
+          .toLowerCase();
+      final query = _searchQuery.toLowerCase();
+
+      return name.contains(query) || description.contains(query);
+    }).toList();
+  }
 
   // Palette et tailles centralisées
   static const _tileBg = AppColors.tileBg;
@@ -34,19 +60,87 @@ class _AccueilPageState extends State<AccueilPage> {
   @override
   void initState() {
     super.initState();
-    _loadPanneaux();
+    _checkAuthAndLoadPanneaux();
+  }
+
+  Future<void> _checkAuthAndLoadPanneaux() async {
+    // Check authentication
+    final profile = await LocalProfileService.getProfile();
+    print('📋 Profile data: $profile');
+
+    final isAuth = profile['name'] != null && profile['name']!.isNotEmpty;
+    final userId =
+        profile['num'] as int?; // Using 'num' as user ID from COMPTES table
+
+    print('🔐 Authentication status: $isAuth, User ID: $userId');
+
+    setState(() {
+      _isAuthenticated = isAuth;
+      _currentUserId = userId;
+    });
+
+    await _loadPanneaux();
   }
 
   Future<void> _loadPanneaux() async {
     try {
-      // Ajouter un timeout pour éviter que l'application reste bloquée
-      final panneaux = await DAO
-          .getAll('panneaux')
-          .timeout(const Duration(seconds: 10));
+      List<Map<String, dynamic>> panneauxToDisplay;
+
+      if (_isAuthenticated && _currentUserId != null) {
+        // Get user's panels via LIAISONS_PANNEAUX
+        print(
+          '🔐 User authenticated, loading user panels only (ID: $_currentUserId)',
+        );
+
+        // Get all liaisons for this user
+        final liaisons = List<Map<String, dynamic>>.from(
+          await DAO.getAll('liaisons_panneaux'),
+        );
+
+        print('📊 Total liaisons in database: ${liaisons.length}');
+        if (liaisons.isNotEmpty) {
+          print('📊 Sample liaison: ${liaisons.first}');
+        }
+
+        // Filter liaisons for current user
+        final userLiaisons = liaisons
+            .where((l) => l['id_compte'] == _currentUserId)
+            .toList();
+
+        print('👤 User liaisons found: ${userLiaisons.length}');
+        if (userLiaisons.isNotEmpty) {
+          print('👤 Sample user liaison: ${userLiaisons.first}');
+        }
+
+        // Get panel IDs
+        final panelIds = userLiaisons.map((l) => l['id_panneau']).toSet();
+
+        print('🆔 Panel IDs for user: $panelIds');
+
+        if (panelIds.isEmpty) {
+          print('ℹ️ No panels found for user');
+          panneauxToDisplay = [];
+        } else {
+          // Get all panels and filter by user's panel IDs
+          final allPanneaux = List<Map<String, dynamic>>.from(
+            await DAO.getAll('panneaux'),
+          );
+          panneauxToDisplay = allPanneaux
+              .where((p) => panelIds.contains(p['id'] ?? p['num']))
+              .toList();
+          print('✅ Loaded ${panneauxToDisplay.length} user panels');
+        }
+      } else {
+        // Not authenticated: show all panels
+        print('🌐 User not authenticated, loading all panels');
+        panneauxToDisplay = List<Map<String, dynamic>>.from(
+          await DAO.getAll('panneaux').timeout(const Duration(seconds: 10)),
+        );
+      }
 
       if (mounted) {
         setState(() {
-          _panneaux = List<Map<String, dynamic>>.from(panneaux);
+          _panneaux = List<Map<String, dynamic>>.from(panneauxToDisplay);
           _isLoading = false;
         });
       }
@@ -82,28 +176,8 @@ class _AccueilPageState extends State<AccueilPage> {
   List<Widget> _buildGridItems() {
     final items = <Widget>[];
 
-    // Ajouter la carte tutoriel en premier
-    items.add(
-      GridCard(
-        title: 'Tutoriel',
-        imageUrl:
-            'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=640',
-        tileColor: _tileBg,
-        labelColor: _iconMuted,
-        labelBg: _labelBg,
-        placeholderBg: _placeholderBg,
-        onTap: () {
-          Navigator.pushNamed(
-            context,
-            ResultatPage.routeName,
-            arguments: ResultatArguments(0, "panneaux"),
-          );
-        },
-      ),
-    );
-
-    // Ajouter les panneaux chargés depuis la base de données
-    for (final panneau in _panneaux) {
+    // Ajouter les panneaux chargés depuis la base de données (filtrés par recherche)
+    for (final panneau in _filteredPanneaux) {
       final panneauId = panneau['id'] ?? panneau['num'];
       final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
       final imageUrl = panneau['image_url'];
@@ -161,28 +235,72 @@ class _AccueilPageState extends State<AccueilPage> {
                 // Barre de recherche qui défile avec le contenu
                 SliverToBoxAdapter(
                   child: CustomSearchBar(
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
                     onSubmitted: (value) {
-                      // TODO: brancher la logique de recherche
+                      // Search is already handled by onChanged
+                      // This just unfocuses the keyboard
                     },
                   ),
                 ),
-                // Grille de cartes
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 16.0,
-                          crossAxisSpacing: 16.0,
-                          childAspectRatio: 0.9,
+                // Empty state when search returns no results
+                if (_filteredPanneaux.isEmpty && _searchQuery.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(48.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 64,
+                              color: AppColors.iconMuted,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Aucun panneau trouvé',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'pour "$_searchQuery"',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                    delegate: SliverChildListDelegate(_buildGridItems()),
+                      ),
+                    ),
+                  )
+                else
+                  // Grille de cartes
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16.0,
+                            crossAxisSpacing: 16.0,
+                            childAspectRatio: 0.9,
+                          ),
+                      delegate: SliverChildListDelegate(_buildGridItems()),
+                    ),
                   ),
-                ),
               ],
             ),
       bottomNavigationBar: const AppBottomNavigation(),

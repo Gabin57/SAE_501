@@ -1,13 +1,17 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:scan_flutter/dao.class.dart';
 import 'package:scan_flutter/src/pages/connexion.dart';
+import 'package:scan_flutter/src/pages/accueil.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/style/dimensions.dart';
 import 'package:scan_flutter/src/widgets/custom_app_bar.dart';
 import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/src/services/object_detection_service.dart';
+import 'package:scan_flutter/src/services/local_profile_service.dart';
 
 class ResultatArguments {
   final int id;
@@ -15,6 +19,18 @@ class ResultatArguments {
   final bool showActions;
 
   ResultatArguments(this.id, this.database, {this.showActions = true});
+}
+
+class PendingScanArguments {
+  final DetectionResult detection;
+  final File? imageFile;
+  final Uint8List? imageBytes;
+
+  PendingScanArguments({
+    required this.detection,
+    this.imageFile,
+    this.imageBytes,
+  });
 }
 
 class ResultatPage extends StatefulWidget {
@@ -33,17 +49,47 @@ class _ResultatPageState extends State<ResultatPage> {
   bool _showActions = true;
   Map<String, dynamic>? _panneauData;
 
+  // Pending scan fields
+  bool _isPendingScan = false;
+  DetectionResult? _pendingDetection;
+  File? _pendingImageFile;
+  Uint8List? _pendingImageBytes;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args != null && args is ResultatArguments) {
+
+    if (args is PendingScanArguments) {
+      // Pending scan mode - awaiting user confirmation
+      _isPendingScan = true;
+      _pendingDetection = args.detection;
+      _pendingImageFile = args.imageFile;
+      _pendingImageBytes = args.imageBytes;
+      _showActions = true; // Always show buttons for pending scans
+      _buildPendingPanneauData();
+    } else if (args is ResultatArguments) {
+      // View mode - existing panel from database
+      _isPendingScan = false;
       id = args.id;
       database = args.database;
       _showActions = args.showActions;
       _loadPanneauData();
     }
+  }
+
+  void _buildPendingPanneauData() {
+    setState(() {
+      _panneauData = {
+        'name': _pendingDetection!.label,
+        'description':
+            'Panneau détecté automatiquement avec confiance ${(_pendingDetection!.confidence * 100).toStringAsFixed(1)}%',
+        'type': 'detection_automatique',
+        'confidence': _pendingDetection!.confidence,
+      };
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadPanneauData() async {
@@ -125,16 +171,86 @@ class _ResultatPageState extends State<ResultatPage> {
     }
   }
 
-  void _handleAjouter() {
-    Navigator.pushNamed(context, ConnexionPage.routeName);
+  Future<void> _handleAjouter() async {
+    if (_isPendingScan) {
+      // Save the pending scan
+      try {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Sauvegarde en cours...')));
+
+        // Upload image if we have bytes
+        String? imageUrl;
+        if (_pendingImageBytes != null) {
+          imageUrl = await DAO.uploadImage(
+            _pendingImageBytes!,
+            'scan_${DateTime.now().millisecondsSinceEpoch}',
+          );
+        }
+
+        // Create panel
+        final panneauData = {
+          'name': _pendingDetection!.label,
+          'description': _panneauData!['description'],
+          'type': 'detection_automatique',
+          'source_url':
+              'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
+        };
+
+        if (imageUrl != null) {
+          panneauData['image_url'] = imageUrl;
+        }
+
+        final panneauResponse = await DAO.create('panneaux', panneauData);
+        final panneauId = panneauResponse['id'] ?? panneauResponse['num'];
+
+        // Create liaison (link to user)
+        final profile = await LocalProfileService.getProfile();
+        final userId = profile['num'];
+
+        if (userId != null) {
+          await DAO.create('liaisons_panneaux', {
+            'id_compte': userId,
+            'id_panneau': panneauId,
+          });
+          print('✅ Liaison created: user $userId -> panel $panneauId');
+        }
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Panneau ajouté !'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.of(context).pushReplacementNamed(AccueilPage.routeName);
+      } catch (e) {
+        print('❌ Error saving panel: $e');
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } else {
+      // Not a pending scan - redirect to login
+      Navigator.pushNamed(context, ConnexionPage.routeName);
+    }
   }
 
-  void _handleSupprimer() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vous devez être connecté pour supprimer un panneau'),
-      ),
-    );
+  Future<void> _handleSupprimer() async {
+    if (_isPendingScan) {
+      // Cancel scan - just go back
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vous devez être connecté pour supprimer un panneau'),
+        ),
+      );
+    }
   }
 
   // Extract confidence percentage from description or data

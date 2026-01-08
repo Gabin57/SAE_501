@@ -6,9 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../services/object_detection_service.dart';
-import '../../../dao.class.dart';
-import 'resultat.dart';
+import 'package:scan_flutter/src/pages/scan/resultat.dart';
+import 'package:scan_flutter/src/services/object_detection_service.dart';
+import 'package:scan_flutter/src/services/local_profile_service.dart';
+import 'package:scan_flutter/src/widgets/custom_app_bar.dart';
+import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
+import 'package:scan_flutter/src/style/colors.dart';
+import 'package:scan_flutter/src/style/dimensions.dart';
+import 'package:scan_flutter/dao.class.dart';
 
 class ScanPage extends StatefulWidget {
   static const routeName = '/scan';
@@ -269,9 +274,30 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         });
       }
 
-      // Sauvegarder le panneau dans la base de données et naviguer
-      print('💾 [SCAN] Sauvegarde du panneau...');
-      await _savePanneau(bestDetection, imageFile);
+      // Check authentication to decide whether to auto-save or show confirmation
+      final profile = await LocalProfileService.getProfile();
+      final isAuth = profile['name'] != null && profile['name']!.isNotEmpty;
+
+      if (isAuth) {
+        // Authenticated: save automatically (existing behavior)
+        print('💾 [SCAN] User authenticated - saving automatically');
+        await _savePanneau(bestDetection, imageFile);
+      } else {
+        // NOT authenticated: navigate to ResultatPage for manual confirmation
+        print('⏸️ [SCAN] User not authenticated - showing confirmation page');
+        final imageBytes = await imageFile.readAsBytes();
+
+        if (mounted) {
+          Navigator.of(context).pushNamed(
+            ResultatPage.routeName,
+            arguments: PendingScanArguments(
+              detection: bestDetection,
+              imageFile: imageFile,
+              imageBytes: imageBytes,
+            ),
+          );
+        }
+      }
     } catch (e, stackTrace) {
       print('❌ [SCAN] Erreur lors de la détection: $e');
       print('❌ [SCAN] Stack trace: $stackTrace');

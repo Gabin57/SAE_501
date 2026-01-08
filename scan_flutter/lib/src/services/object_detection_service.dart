@@ -134,26 +134,14 @@ class ObjectDetectionService {
     double conf = 0.5,
   }) async {
     try {
-      print(
-        '🔍 [DETECTION-BYTES] Début de la détection d\'objets depuis bytes',
-      );
-      print(
-        '📊 [DETECTION-BYTES] Taille de l\'image: ${imageBytes.length} bytes',
-      );
+      // print('🔍 [DETECTION-BYTES] Début de la détection...');
 
-      // Convertir les bytes en base64
       final base64Image = base64Encode(imageBytes);
-      print(
-        '📊 [DETECTION-BYTES] Taille base64: ${base64Image.length} caractères',
-      );
 
       final requestBody = {
         'image': 'data:image/jpeg;base64,$base64Image',
         'conf': conf,
       };
-
-      print('🌐 [DETECTION-BYTES] Envoi de la requête à: $_baseUrl/detect');
-      print('⚙️ [DETECTION-BYTES] Seuil de confiance: $conf');
 
       // Envoyer la requête à l'API Python avec le modèle YOLO avec timeout
       final response = await http
@@ -171,48 +159,30 @@ class ObjectDetectionService {
             },
           );
 
-      print(
-        '📥 [DETECTION-BYTES] Réponse reçue - Status: ${response.statusCode}',
-      );
-      print('📥 [DETECTION-BYTES] Corps de la réponse: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('✅ [DETECTION-BYTES] Réponse parsée avec succès');
-        print('📋 [DETECTION-BYTES] Clés de la réponse: ${data.keys.toList()}');
 
         if (data['success'] == true || data.containsKey('results')) {
           List<dynamic> detections;
           if (data.containsKey('results')) {
             detections = data['results'] is List ? data['results'] : [];
-            print(
-              '📊 [DETECTION-BYTES] Nombre de résultats: ${detections.length}',
-            );
           } else if (data.containsKey('detections')) {
             detections = data['detections'];
-            print(
-              '📊 [DETECTION-BYTES] Nombre de détections: ${detections.length}',
-            );
           } else {
             detections = [];
-            print(
-              '⚠️ [DETECTION-BYTES] Aucune clé "results" ou "detections" trouvée',
-            );
           }
 
           if (detections.isEmpty) {
-            print('⚠️ [DETECTION-BYTES] Liste de détections vide');
+            // print('⚠️ [DETECTION-BYTES] Liste de détections vide');
             return [];
           }
 
-          print('🔄 [DETECTION-BYTES] Conversion des détections en objets...');
           final results = detections.map((d) {
-            print('   - Détection: $d');
             return DetectionResult.fromJson(d);
           }).toList();
 
           print(
-            '✅ [DETECTION-BYTES] ${results.length} détection(s) convertie(s) avec succès',
+            '✅ [DETECTION-BYTES] ${results.length} détection(s) trouvée(s)',
           );
           return results;
         } else {
@@ -227,7 +197,6 @@ class ObjectDetectionService {
       }
     } catch (e) {
       print('❌ [DETECTION-BYTES] Exception: $e');
-      print('❌ [DETECTION-BYTES] Stack trace: ${StackTrace.current}');
       throw Exception('Échec de la détection d\'objets: $e');
     }
   }

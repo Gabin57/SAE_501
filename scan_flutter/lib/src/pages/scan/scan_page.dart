@@ -14,6 +14,9 @@ import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
 import 'package:scan_flutter/src/style/colors.dart';
 import 'package:scan_flutter/src/style/dimensions.dart';
 import 'package:scan_flutter/dao.class.dart';
+import 'package:scan_flutter/src/widgets/bounding_box_painter.dart';
+// Conditional import for Web Camera
+import 'web_camera_stub.dart' if (dart.library.html) 'web_camera_view.dart';
 
 class ScanPage extends StatefulWidget {
   static const routeName = '/scan';
@@ -36,6 +39,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   int _selectedCameraIndex = 0;
+  Timer? _detectionTimer;
+  bool _isDetecting = false;
+
+  // Web specific variables
+  dynamic _webVideoElement;
 
   @override
   void initState() {
@@ -47,54 +55,83 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _detectionTimer?.cancel(); // Cancel timer
     _cameraController?.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _cameraController;
+
+    // App state changed before we got the chance to initialize.
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
   Future<void> _initializeCamera() async {
     try {
-      final cameraStatus = await Permission.camera.request();
-      if (cameraStatus != PermissionStatus.granted) {
+      if (kIsWeb) {
+        // On Web, we use WebCameraView which handles initialization internally
         if (mounted) {
-          setState(() => _isCameraInitialized = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Les permissions de la caméra sont requises. Vous pouvez utiliser la galerie à la place.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          setState(() {
+            _isCameraInitialized = true;
+          });
         }
         return;
-      }
-
-      if (widget.cameras.isEmpty) {
-        if (mounted) {
-          setState(() => _isCameraInitialized = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Aucune caméra disponible. Utilisez la galerie pour sélectionner une image.',
+      } else {
+        // Mobile implementation
+        final cameraStatus = await Permission.camera.request();
+        if (cameraStatus != PermissionStatus.granted) {
+          if (mounted) {
+            setState(() => _isCameraInitialized = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Les permissions de la caméra sont requises. Vous pouvez utiliser la galerie à la place.',
+                ),
+                duration: Duration(seconds: 3),
               ),
-              duration: Duration(seconds: 3),
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
-      }
 
-      await _initializeCameraController(_selectedCameraIndex);
+        if (widget.cameras.isEmpty) {
+          if (mounted) {
+            setState(() => _isCameraInitialized = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Aucune caméra disponible. Utilisez la galerie pour sélectionner une image.',
+                ),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+
+        await _initializeCameraController(_selectedCameraIndex);
+      }
     } catch (e) {
-      // Gérer gracieusement l'erreur de caméra (notamment dans les navigateurs web)
+      // Gérer gracieusement l'erreur de caméra
       if (mounted) {
         setState(() => _isCameraInitialized = false);
         final errorMessage =
             e.toString().contains('hardware error') ||
                 e.toString().contains('not readable')
             ? 'La caméra n\'est pas disponible. Utilisez la galerie pour sélectionner une image.'
-            : 'Erreur lors de l\'initialisation de la caméra. Utilisez la galerie à la place.';
+            : 'Erreur lors de l\'initialisation de la caméra: $e';
 
+        print('❌ [CAMERA] Error: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -102,6 +139,71 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           ),
         );
       }
+    }
+  }
+
+  void _startRealtimeDetection() {
+    // Detect every 500ms
+    _detectionTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) async {
+      if (_isDetecting) return;
+
+      if (kIsWeb) {
+        if (_webVideoElement != null) {
+          _isDetecting = true;
+          await _detectInCurrentFrame();
+          _isDetecting = false;
+        }
+      } else {
+        if (_cameraController != null &&
+            _cameraController!.value.isInitialized) {
+          _isDetecting = true;
+          await _detectInCurrentFrame();
+          _isDetecting = false;
+        }
+      }
+    });
+  }
+
+  Future<void> _detectInCurrentFrame() async {
+    try {
+      Uint8List bytes;
+
+      if (kIsWeb) {
+        // Web capture
+        if (_webVideoElement == null) return;
+        // Use conditional import function
+        final List<int> capturedBytes = await captureFrame(_webVideoElement);
+        bytes = Uint8List.fromList(capturedBytes);
+      } else {
+        // Mobile capture
+        if (_cameraController == null ||
+            !_cameraController!.value.isInitialized) {
+          return;
+        }
+        final image = await _cameraController!.takePicture();
+        bytes = await image.readAsBytes();
+      }
+
+      // Skip detection if image is too small or invalid
+      if (bytes.isEmpty) return;
+
+      // Make sure we are still mounted before using service
+      if (!mounted) return;
+
+      final detections = await _detectionService.detectObjectsFromBytes(
+        bytes,
+        conf: 0.5, // Higher confidence for real-time
+      );
+
+      if (mounted) {
+        setState(() {
+          _detections = detections;
+        });
+      }
+    } catch (e) {
+      print('⚠️ [REALTIME] Detection error: $e');
     }
   }
 
@@ -149,17 +251,31 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   }
 
   Future<void> _takePicture() async {
-    if (!_isCameraInitialized ||
-        _cameraController == null ||
-        !_cameraController!.value.isInitialized) {
-      return;
+    // Check initialization based on platform
+    if (kIsWeb) {
+      if (_webVideoElement == null) return;
+    } else {
+      if (!_isCameraInitialized ||
+          _cameraController == null ||
+          !_cameraController!.value.isInitialized) {
+        return;
+      }
     }
 
     try {
       setState(() => _isLoading = true);
-      final XFile picture = await _cameraController!.takePicture();
-      final File imageFile = File(picture.path);
-      await _detectObjects(imageFile);
+
+      if (kIsWeb) {
+        // Capture frame for Web
+        final List<int> capturedBytes = await captureFrame(_webVideoElement);
+        final bytes = Uint8List.fromList(capturedBytes);
+        await _processWebCapture(bytes);
+      } else {
+        // Capture for Mobile
+        final XFile picture = await _cameraController!.takePicture();
+        final File imageFile = File(picture.path);
+        await _detectObjects(imageFile);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,6 +285,47 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _processWebCapture(Uint8List bytes) async {
+    try {
+      print('🎯 [SCAN] Processing Web Capture');
+
+      final detections = await _detectionService.detectObjectsFromBytes(
+        bytes,
+        conf: 0.5,
+      );
+
+      if (detections.isNotEmpty) {
+        // Sort by confidence
+        detections.sort((a, b) => b.confidence.compareTo(a.confidence));
+        final bestDetection = detections.first;
+
+        if (mounted) {
+          Navigator.pushNamed(
+            context,
+            ResultatPage.routeName,
+            arguments: PendingScanArguments(
+              detection: bestDetection,
+              imageBytes: bytes,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun panneau détecté')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error processing web capture: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
     }
   }
@@ -274,29 +431,19 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         });
       }
 
-      // Check authentication to decide whether to auto-save or show confirmation
-      final profile = await LocalProfileService.getProfile();
-      final isAuth = profile['name'] != null && profile['name']!.isNotEmpty;
+      // Show confirmation page for ALL users (authenticated or not)
+      print('⏸️ [SCAN] Showing confirmation page for scan');
+      final imageBytes = await imageFile.readAsBytes();
 
-      if (isAuth) {
-        // Authenticated: save automatically (existing behavior)
-        print('💾 [SCAN] User authenticated - saving automatically');
-        await _savePanneau(bestDetection, imageFile);
-      } else {
-        // NOT authenticated: navigate to ResultatPage for manual confirmation
-        print('⏸️ [SCAN] User not authenticated - showing confirmation page');
-        final imageBytes = await imageFile.readAsBytes();
-
-        if (mounted) {
-          Navigator.of(context).pushNamed(
-            ResultatPage.routeName,
-            arguments: PendingScanArguments(
-              detection: bestDetection,
-              imageFile: imageFile,
-              imageBytes: imageBytes,
-            ),
-          );
-        }
+      if (mounted) {
+        Navigator.of(context).pushNamed(
+          ResultatPage.routeName,
+          arguments: PendingScanArguments(
+            detection: bestDetection,
+            imageFile: imageFile,
+            imageBytes: imageBytes,
+          ),
+        );
       }
     } catch (e, stackTrace) {
       print('❌ [SCAN] Erreur lors de la détection: $e');
@@ -377,9 +524,19 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         });
       }
 
-      // Sauvegarder le panneau dans la base de données et naviguer
-      print('💾 [SCAN-WEB] Sauvegarde du panneau...');
-      await _savePanneauFromBytes(bestDetection, bytes, imageFile.name);
+      // Show confirmation page for web scans (same as camera scans)
+      print('⏸️ [SCAN-WEB] Showing confirmation page');
+
+      if (mounted) {
+        Navigator.of(context).pushNamed(
+          ResultatPage.routeName,
+          arguments: PendingScanArguments(
+            detection: bestDetection,
+            imageFile: null, // No File object for web
+            imageBytes: Uint8List.fromList(bytes),
+          ),
+        );
+      }
     } catch (e, stackTrace) {
       print('❌ [SCAN-WEB] Erreur lors de la détection: $e');
       print('❌ [SCAN-WEB] Stack trace: $stackTrace');
@@ -421,15 +578,32 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         throw Exception('Impossible de récupérer l\'ID du panneau créé');
       }
 
-      // TODO: Créer la liaison avec le compte utilisateur si connecté
-      // Pour l'instant, on navigue directement vers la page de détails
+      // Create liaison with user account if authenticated
+      final profile = await LocalProfileService.getProfile();
+      final userId = profile['num'];
+
+      if (userId != null) {
+        try {
+          await DAO.create('liaisons_panneaux', {
+            'id_compte': userId,
+            'id_panneau': panneauId,
+          });
+          print('✅ [SCAN] Liaison created: user $userId -> panel $panneauId');
+        } catch (e) {
+          print('⚠️ [SCAN] Could not create liaison: $e');
+        }
+      }
 
       if (mounted) {
         // Naviguer vers la page de détails du panneau créé
         Navigator.pushReplacementNamed(
           context,
           ResultatPage.routeName,
-          arguments: ResultatArguments(panneauId, 'panneaux'),
+          arguments: ResultatArguments(
+            panneauId,
+            'panneaux',
+            showActions: false, // Don't show buttons for auto-saved scans
+          ),
         );
       }
     } catch (e) {
@@ -532,8 +706,41 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (_isCameraInitialized && _cameraController != null)
-            CameraPreview(_cameraController!)
+          if (kIsWeb)
+            Stack(
+              fit: StackFit.expand,
+              children: [
+                WebCameraView(
+                  onCameraReady: (video) {
+                    _webVideoElement = video;
+                    _startRealtimeDetection();
+                  },
+                  onError: (err) {
+                    print('Web Camera Error: $err');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erreur caméra web: $err')),
+                    );
+                  },
+                ),
+                if (_detections.isNotEmpty)
+                  CustomPaint(
+                    painter: BoundingBoxPainter(_detections),
+                    child: Container(),
+                  ),
+              ],
+            )
+          else if (_isCameraInitialized && _cameraController != null)
+            Stack(
+              fit: StackFit.expand,
+              children: [
+                CameraPreview(_cameraController!),
+                if (_detections.isNotEmpty)
+                  CustomPaint(
+                    painter: BoundingBoxPainter(_detections),
+                    child: Container(),
+                  ),
+              ],
+            )
           else
             Center(
               child: Column(
@@ -655,7 +862,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
               ),
               // Bouton de capture (désactivé si caméra non disponible)
               GestureDetector(
-                onTap: (_isCameraInitialized && _cameraController != null)
+                onTap:
+                    (kIsWeb ||
+                        (_isCameraInitialized && _cameraController != null))
                     ? _takePicture
                     : null,
                 child: Container(
@@ -663,7 +872,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                   height: 60,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: (_isCameraInitialized && _cameraController != null)
+                    color:
+                        (kIsWeb ||
+                            (_isCameraInitialized && _cameraController != null))
                         ? Colors.white
                         : Colors.white.withOpacity(0.3),
                     boxShadow: [

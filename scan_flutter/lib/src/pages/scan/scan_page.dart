@@ -9,10 +9,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:scan_flutter/src/pages/scan/resultat.dart';
 import 'package:scan_flutter/src/services/object_detection_service.dart';
 import 'package:scan_flutter/src/services/local_profile_service.dart';
-import 'package:scan_flutter/src/widgets/custom_app_bar.dart';
-import 'package:scan_flutter/src/widgets/app_bottom_navigation.dart';
-import 'package:scan_flutter/src/style/colors.dart';
-import 'package:scan_flutter/src/style/dimensions.dart';
 import 'package:scan_flutter/dao.class.dart';
 import 'package:scan_flutter/src/widgets/bounding_box_painter.dart';
 // Conditional import for Web Camera
@@ -226,6 +222,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       await _cameraController?.initialize();
       if (mounted) {
         setState(() => _isCameraInitialized = true);
+        if (!kIsWeb) {
+          _startRealtimeDetection();
+        }
       }
     } catch (e) {
       // Gérer l'erreur sans bloquer l'application
@@ -773,8 +772,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
               ),
             ),
           // Afficher l'overlay uniquement si la caméra est disponible
-          if (_isCameraInitialized && _cameraController != null)
-            _buildScanOverlay(),
           Positioned(
             bottom: 40,
             left: 0,
@@ -783,56 +780,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildScanOverlay() {
-    return Stack(
-      children: [
-        // Couche sombre semi-transparente
-        ColorFiltered(
-          colorFilter: ColorFilter.mode(
-            Colors.black.withOpacity(0.5),
-            BlendMode.srcOut,
-          ),
-          child: Stack(
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  color: Colors.black,
-                  backgroundBlendMode: BlendMode.dstOut,
-                ),
-              ),
-              // Zone de scan transparente
-              Center(
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  height: MediaQuery.of(context).size.width * 0.8,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Texte d'instruction
-        Positioned(
-          top: MediaQuery.of(context).size.height * 0.2,
-          left: 0,
-          right: 0,
-          child: const Text(
-            'Placez le panneau dans le cadre',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

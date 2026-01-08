@@ -59,13 +59,29 @@ class _ConnexionPageState extends State<ConnexionPage> {
 
       int? userNum;
       try {
-        // Récupérer tous les comptes et trouver celui qui correspond
-        final comptes = await DAO.getAll('comptes');
-        final compte = comptes.firstWhere(
-          (c) => c['email'] == userEmail,
-          orElse: () => {},
-        );
-        userNum = compte['num'] as int?;
+        // Option 1: Try to get ID from login response directly if available
+        if (user['num'] != null || user['id'] != null) {
+          final rawId = user['num'] ?? user['id'];
+          userNum = rawId is int ? rawId : int.tryParse(rawId.toString());
+        }
+
+        // Option 2: Fallback to fetching account if ID not in login response or parsing failed
+        if (userNum == null) {
+          final comptes = await DAO.getAll('comptes');
+          final compte = comptes.firstWhere(
+            (c) =>
+                c['email'] == userEmail ||
+                c['identifiant'] == _identifiantController.text,
+            orElse: () => {},
+          );
+
+          if (compte.isNotEmpty) {
+            final rawId = compte['num'] ?? compte['id'];
+            userNum = rawId is int
+                ? rawId
+                : int.tryParse(rawId?.toString() ?? '');
+          }
+        }
         print('✅ User num retrieved: $userNum');
       } catch (e) {
         print('⚠️ Could not retrieve user num: $e');

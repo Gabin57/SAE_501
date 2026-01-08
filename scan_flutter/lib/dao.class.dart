@@ -115,10 +115,21 @@ class DAO {
   // Méthode générique pour mettre à jour un élément
   static Future<bool> update(String table, Map<String, dynamic> data) async {
     try {
+      // Nettoyer les données avant envoi (comme pour create)
+      final cleanedData = Map<String, dynamic>.from(data);
+
+      switch (table.toUpperCase()) {
+        case 'COMPTES':
+          if (data.containsKey('mot_de_passe')) {
+            cleanedData['motdepasse'] = cleanedData.remove('mot_de_passe');
+          }
+          break;
+      }
+
       final response = await httpClient.put(
         Uri.parse('$baseUrl/$table'),
         headers: headers,
-        body: jsonEncode(data),
+        body: jsonEncode(cleanedData),
       );
 
       if (response.statusCode == 200) {
@@ -237,6 +248,45 @@ class DAO {
       }
     } catch (e) {
       throw Exception('Erreur d\'inscription: $e');
+    }
+  }
+
+  // Méthode de mise à jour du profil (avec gestion mot de passe)
+  static Future<Map<String, dynamic>> updateProfile(
+    int id,
+    String identifiant,
+    String email, {
+    String? password,
+  }) async {
+    try {
+      final body = {'id': id, 'identifiant': identifiant, 'email': email};
+
+      if (password != null && password.isNotEmpty) {
+        body['password'] = password;
+      }
+
+      final response = await httpClient.put(
+        Uri.parse('$baseUrl/api/auth/update'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      print(
+        'Update profile response: ${response.statusCode} - ${response.body}',
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        try {
+          final errorBody = jsonDecode(response.body);
+          throw Exception(errorBody['error'] ?? 'Échec de la mise à jour');
+        } catch (_) {
+          throw Exception('Échec de la mise à jour: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      throw Exception('Erreur de mise à jour: $e');
     }
   }
 

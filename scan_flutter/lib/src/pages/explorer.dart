@@ -37,14 +37,29 @@ class _ExplorerPageState extends State<ExplorerPage> {
 
   Future<void> _loadAllPanneaux() async {
     try {
-      // Load ALL panels without filtering
-      final panneaux = await DAO
-          .getAll('panneaux')
-          .timeout(const Duration(seconds: 10));
+      // Load ALL data needed concurrently
+      final results = await Future.wait([
+        DAO.getAll('panneaux'),
+      ]).timeout(const Duration(seconds: 10));
+
+      final allPanneaux = List<Map<String, dynamic>>.from(results[0]);
+
+      // Sort by ID descending (newest first)
+      allPanneaux.sort((a, b) {
+        final rawIdA = a['id'] ?? a['num'];
+        final rawIdB = b['id'] ?? b['num'];
+        final idA = rawIdA is int
+            ? rawIdA
+            : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+        final idB = rawIdB is int
+            ? rawIdB
+            : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+        return idB.compareTo(idA);
+      });
 
       if (mounted) {
         setState(() {
-          _panneaux = List<Map<String, dynamic>>.from(panneaux);
+          _panneaux = allPanneaux;
           _isLoading = false;
         });
       }
@@ -94,7 +109,14 @@ class _ExplorerPageState extends State<ExplorerPage> {
     final items = <Widget>[];
 
     for (final panneau in _filteredPanneaux) {
-      final panneauId = panneau['id'] ?? panneau['num'];
+      final rawId = panneau['id'] ?? panneau['num'];
+      // Ensure we have a valid int ID
+      final int? panneauId = rawId is int
+          ? rawId
+          : int.tryParse(rawId?.toString() ?? '');
+
+      if (panneauId == null) continue; // Skip invalid panels
+
       final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
       final imageUrl = panneau['image_url'];
       final imagePath = panneau['image_path'];
@@ -112,14 +134,87 @@ class _ExplorerPageState extends State<ExplorerPage> {
             Navigator.pushNamed(
               context,
               ResultatPage.routeName,
-              arguments: ResultatArguments(panneauId, 'panneaux'),
+              arguments: ResultatArguments(
+                panneauId,
+                'panneaux',
+                showActions: false,
+              ),
             );
           },
+          onDelete: () =>
+              _deletePanneau(panneauId, panneauName), // Add delete callback
         ),
       );
     }
 
     return items;
+  }
+
+  Future<void> _deletePanneau(int panneauId, String panneauName) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le panneau ?'),
+        content: Text(
+          'Voulez-vous vraiment supprimer "$panneauName" ?\n\nCette action est irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        print('🗑️ [EXPLORER] Starting deletion of panel $panneauId');
+
+        // Delete liaisons first
+        final liaisons = await DAO.getAll('liaisons_panneaux');
+        final panneauLiaisons = liaisons.where(
+          (l) => l['id_panneau'] == panneauId,
+        );
+
+        print(
+          '🔗 [EXPLORER] Found ${panneauLiaisons.length} liaisons to delete',
+        );
+        for (final liaison in panneauLiaisons) {
+          print('🗑️ [EXPLORER] Deleting liaison ${liaison['num']}');
+          await DAO.delete('liaisons_panneaux', liaison['num']);
+        }
+
+        // Delete panel
+        print('🗑️ [EXPLORER] Deleting panel $panneauId');
+        await DAO.delete('panneaux', panneauId);
+        print('✅ [EXPLORER] Panel deleted successfully');
+
+        // Reload panels
+        await _loadAllPanneaux();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Panneau supprimé'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        print('❌ [EXPLORER] Error deleting panel: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -208,130 +303,190 @@ class _ExplorerPageState extends State<ExplorerPage> {
 // GridCard widget (copied from accueil.dart)
 class GridCard extends StatelessWidget {
   final String title;
-  final String? imageUrl;
-  final String? imagePath;
+  final String? subtitle; // New parameter
   final Color tileColor;
   final Color labelColor;
   final Color labelBg;
   final Color placeholderBg;
-  final VoidCallback onTap;
+  final String? imageUrl;
+  final String? imagePath;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const GridCard({
     super.key,
     required this.title,
-    this.imageUrl,
-    this.imagePath,
+    this.subtitle, // New parameter
     required this.tileColor,
     required this.labelColor,
     required this.labelBg,
     required this.placeholderBg,
-    required this.onTap,
+    this.imageUrl,
+    this.imagePath,
+    this.onTap,
+    this.onDelete,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: tileColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image container
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _buildImage(),
-                ),
-              ),
-            ),
-            // Label
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-              decoration: BoxDecoration(
-                color: labelBg,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: labelColor,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildImage() {
-    // Sur Web ou si on a un chemin local, essayer de l'utiliser
+    // Sur Web, on ne peut pas utiliser File(), on doit utiliser l'URL réseau
+    // Si on n'est pas sur le web et qu'on a un chemin local, on l'utilise
     if (!kIsWeb && imagePath != null) {
+      // Afficher l'image depuis le chemin local (fichier système)
       final file = File(imagePath!);
       if (file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildPlaceholder();
-          },
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder();
+            },
+          ),
+        );
+      } else {
+        return _buildPlaceholder();
+      }
+    } else if (imageUrl != null) {
+      // Vérifier si c'est un SVG
+      if (imageUrl!.toLowerCase().endsWith('.svg')) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(
+              16.0,
+            ), // Padding pour ne pas toucher les bords
+            child: SvgPicture.network(
+              imageUrl!,
+              fit: BoxFit.contain, // Ajuster pour voir le panneau entier
+              width: double.infinity,
+              placeholderBuilder: (BuildContext context) => _buildPlaceholder(),
+            ),
+          ),
         );
       }
-    }
 
-    // Sinon, utiliser l'URL réseau
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      final urlString = imageUrl!;
-
-      // Check if SVG
-      if (urlString.toLowerCase().endsWith('.svg')) {
-        return SvgPicture.network(
-          urlString,
-          fit: BoxFit.contain,
-          placeholderBuilder: (_) => _buildPlaceholder(),
-        );
-      }
-
-      // Regular image
-      return Image.network(
-        urlString,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPlaceholder();
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return const Center(child: CircularProgressIndicator());
-        },
+      // Afficher l'image depuis l'URL (JPG/PNG/etc)
+      return ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Image.network(
+            imageUrl!,
+            fit: BoxFit.contain,
+            width: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder();
+            },
+          ),
+        ),
       );
+    } else {
+      return _buildPlaceholder();
     }
-
-    return _buildPlaceholder();
   }
 
   Widget _buildPlaceholder() {
     return Container(
-      color: placeholderBg,
-      child: Center(
-        child: Icon(
-          Icons.image_outlined,
-          size: 48,
-          color: labelColor.withOpacity(0.3),
+      decoration: BoxDecoration(
+        color: placeholderBg,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
         ),
+      ),
+      child: Center(
+        child: Icon(Icons.image_outlined, size: 28, color: labelColor),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        // Wrap in Stack for delete button overlay
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                color: tileColor,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildImage()),
+                  Container(
+                    height: 36,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: labelBg,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: labelColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Delete button overlay (top-right corner)
+          if (onDelete != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 2,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: onDelete,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

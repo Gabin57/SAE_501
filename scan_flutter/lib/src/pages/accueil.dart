@@ -63,6 +63,16 @@ class _AccueilPageState extends State<AccueilPage> {
     _checkAuthAndLoadPanneaux();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload panels when returning to this page
+    // Skip first load (when _panneaux is empty and _isLoading is true)
+    if (!_isLoading) {
+      _loadPanneaux();
+    }
+  }
+
   Future<void> _checkAuthAndLoadPanneaux() async {
     // Check authentication
     final profile = await LocalProfileService.getProfile();
@@ -125,6 +135,18 @@ class _AccueilPageState extends State<AccueilPage> {
           final allPanneaux = List<Map<String, dynamic>>.from(
             await DAO.getAll('panneaux'),
           );
+          // Sort by ID descending (newest first)
+          allPanneaux.sort((a, b) {
+            final rawIdA = a['id'] ?? a['num'];
+            final rawIdB = b['id'] ?? b['num'];
+            final idA = rawIdA is int
+                ? rawIdA
+                : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+            final idB = rawIdB is int
+                ? rawIdB
+                : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+            return idB.compareTo(idA);
+          });
           panneauxToDisplay = allPanneaux
               .where((p) => panelIds.contains(p['id'] ?? p['num']))
               .toList();
@@ -137,6 +159,19 @@ class _AccueilPageState extends State<AccueilPage> {
           await DAO.getAll('panneaux').timeout(const Duration(seconds: 10)),
         );
       }
+
+      // Sort by ID descending (newest first)
+      panneauxToDisplay.sort((a, b) {
+        final rawIdA = a['id'] ?? a['num'];
+        final rawIdB = b['id'] ?? b['num'];
+        final idA = rawIdA is int
+            ? rawIdA
+            : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+        final idB = rawIdB is int
+            ? rawIdB
+            : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+        return idB.compareTo(idA);
+      });
 
       if (mounted) {
         setState(() {
@@ -178,7 +213,13 @@ class _AccueilPageState extends State<AccueilPage> {
 
     // Ajouter les panneaux chargés depuis la base de données (filtrés par recherche)
     for (final panneau in _filteredPanneaux) {
-      final panneauId = panneau['id'] ?? panneau['num'];
+      final rawId = panneau['id'] ?? panneau['num'];
+      final int? panneauId = rawId is int
+          ? rawId
+          : int.tryParse(rawId?.toString() ?? '');
+
+      if (panneauId == null) continue;
+
       final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
       final imageUrl = panneau['image_url'];
       final imagePath = panneau['image_path'];
@@ -204,11 +245,78 @@ class _AccueilPageState extends State<AccueilPage> {
               ),
             );
           },
+          onDelete: () =>
+              _deletePanneau(panneauId, panneauName), // Add delete callback
         ),
       );
     }
 
     return items;
+  }
+
+  Future<void> _deletePanneau(int panneauId, String panneauName) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le panneau ?'),
+        content: Text(
+          'Voulez-vous vraiment supprimer "$panneauName" ?\n\nCette action est irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        print('🗑️ Starting deletion of panel $panneauId');
+
+        // Delete liaisons first
+        final liaisons = await DAO.getAll('liaisons_panneaux');
+        final panneauLiaisons = liaisons.where(
+          (l) => l['id_panneau'] == panneauId,
+        );
+
+        print('🔗 Found ${panneauLiaisons.length} liaisons to delete');
+        for (final liaison in panneauLiaisons) {
+          print('🗑️ Deleting liaison ${liaison['num']}');
+          await DAO.delete('liaisons_panneaux', liaison['num']);
+        }
+
+        // Delete panel
+        print('🗑️ Deleting panel $panneauId');
+        await DAO.delete('panneaux', panneauId);
+        print('✅ Panel deleted successfully');
+
+        // Reload panels
+        await _loadPanneaux();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Panneau supprimé'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        print('❌ Error deleting panel: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   // Réservé pour les futures données
@@ -327,6 +435,7 @@ class GridCard extends StatelessWidget {
     this.imageUrl,
     this.imagePath,
     this.onTap,
+    this.onDelete, // New parameter for delete callback
   });
 
   final String title;
@@ -337,6 +446,7 @@ class GridCard extends StatelessWidget {
   final String? imageUrl;
   final String? imagePath;
   final VoidCallback? onTap;
+  final VoidCallback? onDelete; // New parameter
 
   Widget _buildImage() {
     // Sur Web, on ne peut pas utiliser File(), on doit utiliser l'URL réseau
@@ -427,49 +537,77 @@ class GridCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: tileColor,
+      child: Stack(
+        // Wrap in Stack for delete button overlay
+        children: [
+          InkWell(
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+            onTap: onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                color: tileColor,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildImage()),
+                  Container(
+                    height: 36,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: labelBg,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: labelColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _buildImage()),
-              Container(
-                height: 36,
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: labelBg,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+          // Delete button overlay (top-right corner)
+          if (onDelete != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 2,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: onDelete,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
                   ),
                 ),
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: labelColor),
-                ),
               ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }

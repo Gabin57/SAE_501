@@ -79,17 +79,64 @@ class _ResultatPageState extends State<ResultatPage> {
     }
   }
 
-  void _buildPendingPanneauData() {
-    setState(() {
-      _panneauData = {
-        'name': _pendingDetection!.label,
-        'description':
-            'Panneau détecté automatiquement avec confiance ${(_pendingDetection!.confidence * 100).toStringAsFixed(1)}%',
-        'type': 'detection_automatique',
-        'confidence': _pendingDetection!.confidence,
-      };
-      _isLoading = false;
-    });
+  Future<void> _buildPendingPanneauData() async {
+    try {
+      print(
+        '🔍 Searching for real panel description for: ${_pendingDetection!.label}',
+      );
+
+      // Get all panels and search for matching name
+      final allPanels = await DAO.getAll('panneaux');
+
+      // Find panel with same name but not auto-detected
+      final realPanel = allPanels.firstWhere(
+        (p) =>
+            p['name'] == _pendingDetection!.label &&
+            p['type'] != 'detection_automatique',
+        orElse: () => null,
+      );
+
+      String description;
+      if (realPanel != null) {
+        print('✅ Found real panel description');
+        description = realPanel['description'];
+      } else {
+        print(
+          '⚠️ No matching panel found in database, using auto-generated description',
+        );
+        // Show what was detected instead of generic "Panneau détecté"
+        description =
+            'Objet détecté : "${_pendingDetection!.label}" avec ${(_pendingDetection!.confidence * 100).toStringAsFixed(1)}% de confiance.\n\nCet objet ne correspond à aucun panneau de signalisation dans notre base de données.';
+      }
+
+      if (!mounted) return; // Check before setState
+
+      setState(() {
+        _panneauData = {
+          'name': _pendingDetection!.label,
+          'description': description,
+          'type': 'detection_automatique',
+          'confidence': _pendingDetection!.confidence,
+        };
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error fetching real panel description: $e');
+
+      if (!mounted) return; // Check before setState
+
+      // Fallback to auto-generated description
+      setState(() {
+        _panneauData = {
+          'name': _pendingDetection!.label,
+          'description':
+              'Panneau détecté automatiquement avec confiance ${(_pendingDetection!.confidence * 100).toStringAsFixed(1)}%',
+          'type': 'detection_automatique',
+          'confidence': _pendingDetection!.confidence,
+        };
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadPanneauData() async {
@@ -102,14 +149,18 @@ class _ResultatPageState extends State<ResultatPage> {
         // First, extract and save the confidence from original description
         final originalDescription = data['description'] as String?;
         if (originalDescription != null) {
+          // Utiliser une expression régulière plus permissive pour trouver la confiance
+          // Cherche "93.0% de confiance" ou "confiance 93.0%"
           final regex = RegExp(
-            r'confiance\s+(\d+\.?\d*)%',
+            r'(\d+\.?\d*)%\s+de\s+confiance|confiance\s+(\d+\.?\d*)%',
             caseSensitive: false,
           );
           final match = regex.firstMatch(originalDescription);
           if (match != null) {
-            data['confidence'] =
-                double.tryParse(match.group(1) ?? '100') ?? 100.0;
+            // Le groupe 1 est pour le premier motif, le groupe 2 pour le second
+            final valString = match.group(1) ?? match.group(2) ?? '100';
+            // Fix: Store as decimal (0.94) not percentage (94.0) because _getConfidence multiplies by 100
+            data['confidence'] = (double.tryParse(valString) ?? 100.0) / 100.0;
           }
         }
 
@@ -184,7 +235,7 @@ class _ResultatPageState extends State<ResultatPage> {
         if (_pendingImageBytes != null) {
           imageUrl = await DAO.uploadImage(
             _pendingImageBytes!,
-            'scan_${DateTime.now().millisecondsSinceEpoch}',
+            'scan_${DateTime.now().millisecondsSinceEpoch}.jpg', // Add .jpg extension
           );
         }
 
@@ -203,24 +254,83 @@ class _ResultatPageState extends State<ResultatPage> {
 
         final panneauResponse = await DAO.create('panneaux', panneauData);
         final panneauId = panneauResponse['id'] ?? panneauResponse['num'];
+        print('📦 Panel created with ID: $panneauId');
 
         // Create liaison (link to user)
         final profile = await LocalProfileService.getProfile();
-        final userId = profile['num'];
+        var userId = profile['num'];
+
+        // Safety Fallback: If local ID is missing, try to fetch it from API
+        if (userId == null &&
+            (profile['email'].isNotEmpty || profile['name'].isNotEmpty)) {
+          print('⚠️ Local ID missing, attempting to resolve from API...');
+          try {
+            final accounts = await DAO.getAll('comptes');
+            final account = accounts.firstWhere(
+              (a) =>
+                  (a['email'] ?? '').toString().toLowerCase() ==
+                      profile['email'].toString().toLowerCase() ||
+                  (a['identifiant'] ?? '').toString().toLowerCase() ==
+                      profile['name'].toString().toLowerCase(),
+              orElse: () => {},
+            );
+            if (account.isNotEmpty) {
+              final rawId = account['num'] ?? account['id'];
+              userId = rawId is int
+                  ? rawId
+                  : int.tryParse(rawId?.toString() ?? '');
+
+              // Opportunistically update local profile
+              if (userId != null) {
+                await LocalProfileService.saveProfile(
+                  name: profile['name'],
+                  email: profile['email'],
+                  theme: profile['theme'],
+                  num: userId,
+                );
+              }
+            }
+          } catch (e) {
+            print('❌ Failed to resolve user ID: $e');
+          }
+        }
+
+        print('👤 User profile: $profile');
+        print('🆔 User ID for liaison: $userId');
 
         if (userId != null) {
-          await DAO.create('liaisons_panneaux', {
-            'id_compte': userId,
-            'id_panneau': panneauId,
-          });
-          print('✅ Liaison created: user $userId -> panel $panneauId');
+          print('🔗 Creating liaison: user $userId -> panel $panneauId');
+          try {
+            final liaisonResponse = await DAO.create('liaisons_panneaux', {
+              'id_compte': userId,
+              'id_panneau': panneauId,
+            });
+            print('✅ Liaison created successfully: $liaisonResponse');
+
+            // Update UI immediately (though we navigate away, valid state is good)
+            // _scannedBy = profile['name'] ?? profile['identifiant'];
+          } catch (e) {
+            print('❌ Error creating liaison: $e');
+          }
+        } else {
+          print('⚠️ No userId found - liaison not created');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Attention: Profil incomplet, scan marqué comme "Déconnecté"',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
         }
 
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Panneau ajouté !'),
+          SnackBar(
+            content: Text(
+              '${_pendingDetection!.label[0].toUpperCase()}${_pendingDetection!.label.substring(1).toLowerCase()} ajouté !',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -257,17 +367,23 @@ class _ResultatPageState extends State<ResultatPage> {
   double _getConfidence() {
     // First try to get from 'confidence' field
     if (_panneauData?['confidence'] != null) {
-      return (_panneauData!['confidence'] as num).toDouble();
+      final confidence = (_panneauData!['confidence'] as num).toDouble();
+      // Confidence is stored as decimal (0.99), convert to percentage (99.0)
+      return confidence * 100;
     }
 
     // Otherwise, try to extract from description
     final description = _panneauData?['description'] as String?;
     if (description != null) {
-      // Look for pattern like "confiance 13.0%" or "confidence 13.0%"
-      final regex = RegExp(r'confiance\s+(\d+\.?\d*)%', caseSensitive: false);
+      // Look for pattern like "93.0% de confiance" or "confiance 93.0%"
+      final regex = RegExp(
+        r'(\d+\.?\d*)%\s+de\s+confiance|confiance\s+(\d+\.?\d*)%',
+        caseSensitive: false,
+      );
       final match = regex.firstMatch(description);
       if (match != null) {
-        return double.tryParse(match.group(1) ?? '100') ?? 100.0;
+        final valString = match.group(1) ?? match.group(2) ?? '100';
+        return double.tryParse(valString) ?? 100.0;
       }
     }
 
@@ -404,13 +520,18 @@ class _ResultatPageState extends State<ResultatPage> {
                         // Description - Expanded to fill available space
                         Expanded(
                           child: SingleChildScrollView(
-                            child: Text(
-                              _getCleanDescription(),
-                              style: const TextStyle(
-                                fontSize: AppDimens.textMedium,
-                                height: 1.4,
-                                color: AppColors.textSecondary,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _getCleanDescription(),
+                                  style: const TextStyle(
+                                    fontSize: AppDimens.textMedium,
+                                    height: 1.4,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -445,6 +566,11 @@ class _ResultatPageState extends State<ResultatPage> {
   }
 
   Widget _buildPanneauImage() {
+    // For pending scans, display image from bytes
+    if (_isPendingScan && _pendingImageBytes != null) {
+      return Image.memory(_pendingImageBytes!, fit: BoxFit.contain);
+    }
+
     final imagePath = _panneauData?['image_path'];
     final imageUrl = _panneauData?['image_url'];
 

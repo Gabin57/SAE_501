@@ -32,13 +32,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // Check that placeholder UI loads
-    expect(find.text("Capture tutoriel"), findsOneWidget);
+    // With id=10, the fallback name is "Image 10"
+    expect(find.text("Image 10"), findsOneWidget);
     expect(find.text("100%"), findsOneWidget);
-    expect(find.text("Scanné par : Vous"), findsOneWidget);
+    // "Scanné par" was removed from UI
+    // expect(find.text("Scanné par : Vous"), findsOneWidget);
   });
 
-  testWidgets("Navigates to ConnexionPage when icon pressed",
-      (tester) async {
+  testWidgets("Navigates to ConnexionPage when icon pressed", (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         routes: {

@@ -17,7 +17,7 @@
     
     <uses-sdk android:targetSdkVersion="36" />
     <application
-        android:label="scan_flutter"
+        android:label="Sign Scan"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">

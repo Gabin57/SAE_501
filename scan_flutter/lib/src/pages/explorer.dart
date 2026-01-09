@@ -20,6 +20,8 @@ class ExplorerPage extends StatefulWidget {
 
 class _ExplorerPageState extends State<ExplorerPage> {
   List<Map<String, dynamic>> _panneaux = [];
+  List<Map<String, dynamic>> _categories = []; // New categories list
+  String? _selectedCategory; // Selected category for filter
   bool _isLoading = true;
   String _searchQuery = '';
 
@@ -32,36 +34,53 @@ class _ExplorerPageState extends State<ExplorerPage> {
   @override
   void initState() {
     super.initState();
-    _loadAllPanneaux();
+    _loadData();
   }
 
-  Future<void> _loadAllPanneaux() async {
+  Future<void> _loadData() async {
     try {
-      // Load ALL data needed concurrently
-      final results = await Future.wait([
-        DAO.getAll('panneaux'),
-      ]).timeout(const Duration(seconds: 10));
+      if (_selectedCategory == null) {
+        // 1. Load Categories
+        print('🌐 [EXPLORER] Loading Categories...');
+        final cats = await DAO.getCategories();
+        final categories = List<Map<String, dynamic>>.from(cats);
 
-      final allPanneaux = List<Map<String, dynamic>>.from(results[0]);
+        if (mounted) {
+          setState(() {
+            _categories = categories;
+            _panneaux = [];
+            _isLoading = false;
+          });
+        }
+      } else {
+        // 2. Load Panels for Selected Category
+        print('🌐 [EXPLORER] Loading Panels for category: $_selectedCategory');
+        final results = await DAO.getAll(
+          'panneaux',
+          queryParams: {'categorie': _selectedCategory!},
+        );
 
-      // Sort by ID descending (newest first)
-      allPanneaux.sort((a, b) {
-        final rawIdA = a['id'] ?? a['num'];
-        final rawIdB = b['id'] ?? b['num'];
-        final idA = rawIdA is int
-            ? rawIdA
-            : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
-        final idB = rawIdB is int
-            ? rawIdB
-            : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
-        return idB.compareTo(idA);
-      });
+        final allPanneaux = List<Map<String, dynamic>>.from(results);
 
-      if (mounted) {
-        setState(() {
-          _panneaux = allPanneaux;
-          _isLoading = false;
+        // Sort by ID descending (newest first)
+        allPanneaux.sort((a, b) {
+          final rawIdA = a['id'] ?? a['num'];
+          final rawIdB = b['id'] ?? b['num'];
+          final idA = rawIdA is int
+              ? rawIdA
+              : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+          final idB = rawIdB is int
+              ? rawIdB
+              : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+          return idA.compareTo(idB); // Ascending order
         });
+
+        if (mounted) {
+          setState(() {
+            _panneaux = allPanneaux;
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -72,12 +91,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur lors du chargement des panneaux: $e'),
+            content: Text('Erreur lors du chargement: $e'),
             duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Réessayer',
-              onPressed: _loadAllPanneaux,
-            ),
+            action: SnackBarAction(label: 'Réessayer', onPressed: _loadData),
           ),
         );
       }
@@ -105,49 +121,81 @@ class _ExplorerPageState extends State<ExplorerPage> {
     }).toList();
   }
 
-  List<Widget> _buildGridItems() {
-    final items = <Widget>[];
+  // Determine effective data list for grid
+  List<dynamic> get _currentDataList {
+    if (_selectedCategory == null) {
+      return _categories;
+    } else {
+      return _filteredPanneaux;
+    }
+  }
 
-    for (final panneau in _filteredPanneaux) {
+  Widget _buildGridItem(BuildContext context, int index) {
+    final dataList = _currentDataList;
+    if (index >= dataList.length) return const SizedBox.shrink();
+
+    final item = dataList[index];
+
+    // Mode Catégories
+    if (_selectedCategory == null) {
+      final category = item as Map<String, dynamic>;
+      final nom = category['nom'] ?? 'Autre';
+      final count = category['count'] ?? 0;
+      final image = category['last_image'];
+
+      return GridCard(
+        title: "$nom ($count)",
+        imageUrl: image,
+        tileColor: _tileBg,
+        labelColor: _iconMuted,
+        labelBg: _labelBg,
+        placeholderBg: _placeholderBg,
+        onTap: () {
+          setState(() {
+            _selectedCategory = nom;
+            _isLoading = true;
+          });
+          _loadData();
+        },
+      );
+    }
+    // Mode Panneaux
+    else {
+      final panneau = item as Map<String, dynamic>;
       final rawId = panneau['id'] ?? panneau['num'];
       // Ensure we have a valid int ID
       final int? panneauId = rawId is int
           ? rawId
           : int.tryParse(rawId?.toString() ?? '');
 
-      if (panneauId == null) continue; // Skip invalid panels
+      if (panneauId == null) return const SizedBox.shrink();
 
       final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
       final imageUrl = panneau['image_url'];
       final imagePath = panneau['image_path'];
 
-      items.add(
-        GridCard(
-          title: panneauName,
-          imageUrl: imageUrl,
-          imagePath: imagePath,
-          tileColor: _tileBg,
-          labelColor: _iconMuted,
-          labelBg: _labelBg,
-          placeholderBg: _placeholderBg,
-          onTap: () {
-            Navigator.pushNamed(
-              context,
-              ResultatPage.routeName,
-              arguments: ResultatArguments(
-                panneauId,
-                'panneaux',
-                showActions: false,
-              ),
-            );
-          },
-          onDelete: () =>
-              _deletePanneau(panneauId, panneauName), // Add delete callback
-        ),
+      return GridCard(
+        title: panneauName,
+        imageUrl: imageUrl,
+        imagePath: imagePath,
+        tileColor: _tileBg,
+        labelColor: _iconMuted,
+        labelBg: _labelBg,
+        placeholderBg: _placeholderBg,
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            ResultatPage.routeName,
+            arguments: ResultatArguments(
+              panneauId,
+              'panneaux',
+              showActions: false,
+            ),
+          );
+        },
+        onDelete: () => _deletePanneau(panneauId, panneauName),
       );
     }
-
-    return items;
   }
 
   Future<void> _deletePanneau(int panneauId, String panneauName) async {
@@ -196,7 +244,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
         print('✅ [EXPLORER] Panel deleted successfully');
 
         // Reload panels
-        await _loadAllPanneaux();
+        await _loadData();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -219,83 +267,128 @@ class _ExplorerPageState extends State<ExplorerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(title: 'Explorer'),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                // Barre de recherche
-                SliverToBoxAdapter(
-                  child: CustomSearchBar(
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                    onSubmitted: (value) {
-                      // Search is already handled by onChanged
-                    },
-                  ),
-                ),
-                // Empty state when search returns no results
-                if (_filteredPanneaux.isEmpty && _searchQuery.isNotEmpty)
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedCategory != null) {
+          setState(() {
+            _selectedCategory = null;
+            _isLoading = true;
+          });
+          _loadData();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: _selectedCategory != null
+              ? 'Catégorie: $_selectedCategory'
+              : 'Explorer',
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : CustomScrollView(
+                slivers: [
+                  // Barre de recherche
                   SliverToBoxAdapter(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(48.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: AppColors.iconMuted,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CustomSearchBar(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value;
+                            });
+                          },
+                          onSubmitted: (_) {},
+                        ),
+                        // Bouton retour si catégorie sélectionnée
+                        if (_selectedCategory != null)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 16,
+                              top: 4,
+                              bottom: 4,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Aucun panneau trouvé',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textDark,
+                            child: ActionChip(
+                              avatar: const Icon(Icons.arrow_back, size: 16),
+                              label: const Text('Retour aux catégories'),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedCategory = null;
+                                  _isLoading = true;
+                                });
+                                _loadData();
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Empty state when search returns no results
+                  if (_selectedCategory != null &&
+                      _filteredPanneaux.isEmpty &&
+                      _searchQuery.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(48.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: AppColors.iconMuted,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'pour "$_searchQuery"',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Aucun panneau trouvé',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textDark,
+                                ),
                               ),
-                              textAlign: TextAlign.center,
+                              const SizedBox(height: 8),
+                              Text(
+                                'pour "$_searchQuery"',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    // Grille de cartes
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 16.0,
+                              crossAxisSpacing: 16.0,
+                              childAspectRatio: 0.9,
                             ),
-                          ],
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _buildGridItem(context, index),
+                          childCount: _currentDataList.length,
                         ),
                       ),
                     ),
-                  )
-                else
-                  // Grille de cartes
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 16.0,
-                            crossAxisSpacing: 16.0,
-                            childAspectRatio: 0.9,
-                          ),
-                      delegate: SliverChildListDelegate(_buildGridItems()),
-                    ),
-                  ),
-              ],
-            ),
-      bottomNavigationBar: const AppBottomNavigation(),
+                ],
+              ),
+        bottomNavigationBar: const AppBottomNavigation(),
+      ),
     );
   }
 }

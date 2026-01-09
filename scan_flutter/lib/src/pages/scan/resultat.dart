@@ -244,6 +244,8 @@ class _ResultatPageState extends State<ResultatPage> {
           'name': _pendingDetection!.label,
           'description': _panneauData!['description'],
           'type': 'detection_automatique',
+          'categorie':
+              _pendingDetection!.label, // Add category using detection label
           'source_url':
               'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
         };

@@ -24,6 +24,8 @@ class AccueilPage extends StatefulWidget {
 class _AccueilPageState extends State<AccueilPage> {
   List<List<Map<String, String>>> donnes = [];
   List<Map<String, dynamic>> _panneaux = [];
+  List<Map<String, dynamic>> _categories = []; // New categories list
+  String? _selectedCategory; // Selected category for filter
   bool _isLoading = true;
   String _searchQuery = '';
   bool _isAuthenticated = false;
@@ -94,9 +96,11 @@ class _AccueilPageState extends State<AccueilPage> {
 
   Future<void> _loadPanneaux() async {
     try {
-      List<Map<String, dynamic>> panneauxToDisplay;
-
       if (_isAuthenticated && _currentUserId != null) {
+        // ... (Existing Authenticated Logic - unchanged for now, or minimal update) ...
+        // Keeping the existing logic for authenticated user to assume they want to see their history
+        // If we want categories here too, we'd need client-side filtering or new API
+
         // Get user's panels via LIAISONS_PANNEAUX
         print(
           '🔐 User authenticated, loading user panels only (ID: $_currentUserId)',
@@ -107,36 +111,71 @@ class _AccueilPageState extends State<AccueilPage> {
           await DAO.getAll('liaisons_panneaux'),
         );
 
-        print('📊 Total liaisons in database: ${liaisons.length}');
-        if (liaisons.isNotEmpty) {
-          print('📊 Sample liaison: ${liaisons.first}');
-        }
-
         // Filter liaisons for current user
         final userLiaisons = liaisons
             .where((l) => l['id_compte'] == _currentUserId)
             .toList();
 
-        print('👤 User liaisons found: ${userLiaisons.length}');
-        if (userLiaisons.isNotEmpty) {
-          print('👤 Sample user liaison: ${userLiaisons.first}');
-        }
-
         // Get panel IDs
         final panelIds = userLiaisons.map((l) => l['id_panneau']).toSet();
 
-        print('🆔 Panel IDs for user: $panelIds');
-
-        if (panelIds.isEmpty) {
-          print('ℹ️ No panels found for user');
-          panneauxToDisplay = [];
-        } else {
-          // Get all panels and filter by user's panel IDs
+        List<Map<String, dynamic>> userPanneaux = [];
+        if (panelIds.isNotEmpty) {
           final allPanneaux = List<Map<String, dynamic>>.from(
             await DAO.getAll('panneaux'),
           );
-          // Sort by ID descending (newest first)
-          allPanneaux.sort((a, b) {
+          userPanneaux = allPanneaux
+              .where((p) => panelIds.contains(p['id'] ?? p['num']))
+              .toList();
+        }
+
+        // Sort
+        userPanneaux.sort((a, b) {
+          final rawIdA = a['id'] ?? a['num'];
+          final rawIdB = b['id'] ?? b['num'];
+          final idA = rawIdA is int
+              ? rawIdA
+              : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+          final idB = rawIdB is int
+              ? rawIdB
+              : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+          return idA.compareTo(idB); // Ascending order
+        });
+
+        if (mounted) {
+          setState(() {
+            _panneaux = userPanneaux;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Not authenticated: Categories View Logic
+
+        if (_selectedCategory == null) {
+          // 1. Load Categories
+          print('🌐 Loading Categories...');
+          final cats = await DAO.getCategories();
+          final categories = List<Map<String, dynamic>>.from(cats);
+
+          if (mounted) {
+            setState(() {
+              _categories = categories;
+              _panneaux = []; // Clear panels when showing categories
+              _isLoading = false;
+            });
+          }
+        } else {
+          // 2. Load Panels for Selected Category
+          print('🌐 Loading Panels for category: $_selectedCategory');
+          final results = await DAO.getAll(
+            'panneaux',
+            queryParams: {'categorie': _selectedCategory!},
+          );
+
+          var categoryPanneaux = List<Map<String, dynamic>>.from(results);
+
+          // Sort
+          categoryPanneaux.sort((a, b) {
             final rawIdA = a['id'] ?? a['num'];
             final rawIdB = b['id'] ?? b['num'];
             final idA = rawIdA is int
@@ -145,59 +184,29 @@ class _AccueilPageState extends State<AccueilPage> {
             final idB = rawIdB is int
                 ? rawIdB
                 : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
-            return idB.compareTo(idA);
+            return idA.compareTo(idB); // Ascending order
           });
-          panneauxToDisplay = allPanneaux
-              .where((p) => panelIds.contains(p['id'] ?? p['num']))
-              .toList();
-          print('✅ Loaded ${panneauxToDisplay.length} user panels');
+
+          if (mounted) {
+            setState(() {
+              _panneaux = categoryPanneaux;
+              _isLoading = false;
+            });
+          }
         }
-      } else {
-        // Not authenticated: show all panels
-        print('🌐 User not authenticated, loading all panels');
-        panneauxToDisplay = List<Map<String, dynamic>>.from(
-          await DAO.getAll('panneaux').timeout(const Duration(seconds: 10)),
-        );
-      }
-
-      // Sort by ID descending (newest first)
-      panneauxToDisplay.sort((a, b) {
-        final rawIdA = a['id'] ?? a['num'];
-        final rawIdB = b['id'] ?? b['num'];
-        final idA = rawIdA is int
-            ? rawIdA
-            : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
-        final idB = rawIdB is int
-            ? rawIdB
-            : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
-        return idB.compareTo(idA);
-      });
-
-      if (mounted) {
-        setState(() {
-          _panneaux = List<Map<String, dynamic>>.from(panneauxToDisplay);
-          _isLoading = false;
-        });
       }
     } catch (e) {
-      // En cas d'erreur, continuer avec une liste vide plutôt que de bloquer l'application
+      // En cas d'erreur, continuer avec une liste vide
+      print('❌ Error loading data: $e');
       if (mounted) {
         setState(() {
-          _panneaux = []; // Liste vide si l'API n'est pas disponible
+          _panneaux = [];
           _isLoading = false;
         });
-
-        // Afficher un message d'erreur moins intrusif
-        final errorMessage =
-            e.toString().contains('Failed to fetch') ||
-                e.toString().contains('ClientException')
-            ? 'Impossible de se connecter à l\'API. Vérifiez votre connexion réseau.'
-            : 'Erreur lors du chargement des panneaux: ${e.toString().split(':').last.trim()}';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
+            content: Text('Erreur récupération données: $e'),
             action: SnackBarAction(
               label: 'Réessayer',
               onPressed: _loadPanneaux,
@@ -208,50 +217,80 @@ class _AccueilPageState extends State<AccueilPage> {
     }
   }
 
-  List<Widget> _buildGridItems() {
-    final items = <Widget>[];
+  // Determine effective data list for grid
+  List<dynamic> get _currentDataList {
+    if (!_isAuthenticated && _selectedCategory == null) {
+      return _categories;
+    } else {
+      return _filteredPanneaux;
+    }
+  }
 
-    // Ajouter les panneaux chargés depuis la base de données (filtrés par recherche)
-    for (final panneau in _filteredPanneaux) {
+  Widget _buildGridItem(BuildContext context, int index) {
+    final dataList = _currentDataList;
+    if (index >= dataList.length) return const SizedBox.shrink();
+
+    final item = dataList[index];
+
+    // Mode Catégories
+    if (!_isAuthenticated && _selectedCategory == null) {
+      final category = item as Map<String, dynamic>;
+      final nom = category['nom'] ?? 'Autre';
+      final count = category['count'] ?? 0;
+      final image = category['last_image'];
+
+      return GridCard(
+        title: "$nom ($count)",
+        imageUrl: image,
+        tileColor: _tileBg,
+        labelColor: _iconMuted,
+        labelBg: _labelBg,
+        placeholderBg: _placeholderBg,
+        onTap: () {
+          setState(() {
+            _selectedCategory = nom;
+            _isLoading = true;
+          });
+          _loadPanneaux();
+        },
+      );
+    }
+    // Mode Panneaux
+    else {
+      final panneau = item as Map<String, dynamic>;
       final rawId = panneau['id'] ?? panneau['num'];
       final int? panneauId = rawId is int
           ? rawId
           : int.tryParse(rawId?.toString() ?? '');
 
-      if (panneauId == null) continue;
+      if (panneauId == null) return const SizedBox.shrink();
 
       final panneauName = panneau['name'] ?? panneau['nom'] ?? 'Panneau';
       final imageUrl = panneau['image_url'];
       final imagePath = panneau['image_path'];
 
-      items.add(
-        GridCard(
-          title: panneauName,
-          imageUrl: imageUrl,
-          imagePath: imagePath,
-          tileColor: _tileBg,
-          labelColor: _iconMuted,
-          labelBg: _labelBg,
-          placeholderBg: _placeholderBg,
-          onTap: () {
-            Navigator.pushNamed(
-              context,
-              ResultatPage.routeName,
-              arguments: ResultatArguments(
-                panneauId,
-                "panneaux",
-                showActions:
-                    false, // Don't show buttons when navigating from home
-              ),
-            );
-          },
-          onDelete: () =>
-              _deletePanneau(panneauId, panneauName), // Add delete callback
-        ),
+      return GridCard(
+        title: panneauName,
+        imageUrl: imageUrl,
+        imagePath: imagePath,
+        tileColor: _tileBg,
+        labelColor: _iconMuted,
+        labelBg: _labelBg,
+        placeholderBg: _placeholderBg,
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            ResultatPage.routeName,
+            arguments: ResultatArguments(
+              panneauId,
+              "panneaux",
+              showActions: false,
+            ),
+          );
+        },
+        onDelete: () => _deletePanneau(panneauId, panneauName),
       );
     }
-
-    return items;
   }
 
   Future<void> _deletePanneau(int panneauId, String panneauName) async {
@@ -319,105 +358,132 @@ class _AccueilPageState extends State<AccueilPage> {
     }
   }
 
-  // Réservé pour les futures données
-
-  /* void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  } */
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(title: 'Code des Panneaux'),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                // Barre de recherche qui défile avec le contenu
-                SliverToBoxAdapter(
-                  child: CustomSearchBar(
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                    onSubmitted: (value) {
-                      // Search is already handled by onChanged
-                      // This just unfocuses the keyboard
-                    },
-                  ),
-                ),
-                // Empty state when search returns no results
-                if (_filteredPanneaux.isEmpty && _searchQuery.isNotEmpty)
+    // Gestion du bouton retour physique pour revenir aux catégories
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedCategory != null) {
+          setState(() {
+            _selectedCategory = null;
+            _isLoading = true;
+          });
+          _loadPanneaux();
+          return false; // Ne pas quitter l'app
+        }
+        return true; // Quitter l'app
+      },
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: _selectedCategory != null
+              ? 'Catégorie: $_selectedCategory'
+              : 'Code des Panneaux',
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : CustomScrollView(
+                slivers: [
+                  // Barre de recherche (cachée en mode catégories pure ?)
+                  // On la laisse pour filtrer les catégories ou panneaux
                   SliverToBoxAdapter(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(48.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: AppColors.iconMuted,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CustomSearchBar(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value;
+                            });
+                          },
+                          onSubmitted: (_) {},
+                        ),
+                        // Bouton retour si catégorie sélectionnée
+                        if (_selectedCategory != null)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 16,
+                              top: 4,
+                              bottom: 4,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Aucun panneau trouvé',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textDark,
+                            child: ActionChip(
+                              avatar: const Icon(Icons.arrow_back, size: 16),
+                              label: const Text('Retour aux catégories'),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedCategory = null;
+                                  _isLoading = true;
+                                });
+                                _loadPanneaux();
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Empty state when search returns no results
+                  if ((_isAuthenticated || _selectedCategory != null) &&
+                      _filteredPanneaux.isEmpty &&
+                      _searchQuery.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(48.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: AppColors.iconMuted,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'pour "$_searchQuery"',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Aucun panneau trouvé',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textDark,
+                                ),
                               ),
-                              textAlign: TextAlign.center,
+                              const SizedBox(height: 8),
+                              Text(
+                                'pour "$_searchQuery"',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    // Grille de cartes
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 16.0,
+                              crossAxisSpacing: 16.0,
+                              childAspectRatio: 0.9,
                             ),
-                          ],
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _buildGridItem(context, index),
+                          childCount: _currentDataList.length,
                         ),
                       ),
                     ),
-                  )
-                else
-                  // Grille de cartes
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 16.0,
-                            crossAxisSpacing: 16.0,
-                            childAspectRatio: 0.9,
-                          ),
-                      delegate: SliverChildListDelegate(_buildGridItems()),
-                    ),
-                  ),
-              ],
-            ),
-      bottomNavigationBar: const AppBottomNavigation(),
-      /* floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), */
-      // This trailing comma makes auto-formatting nicer for build methods.
+                ],
+              ),
+        bottomNavigationBar: const AppBottomNavigation(),
+      ),
     );
   }
 }

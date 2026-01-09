@@ -30,18 +30,47 @@ class DAO {
   };
 
   // Méthode générique pour récupérer tous les éléments d'une table
-  static Future<List<dynamic>> getAll(String table) async {
+  static Future<List<dynamic>> getAll(
+    String table, {
+    Map<String, String>? queryParams,
+  }) async {
     try {
-      final response = await httpClient.get(
-        Uri.parse('$baseUrl/$table?action=getAll'),
-        headers: headers,
+      final uri = Uri.parse('$baseUrl/$table').replace(
+        queryParameters: {
+          'action': 'getAll',
+          if (queryParams != null) ...queryParams,
+        },
       );
+
+      final response = await httpClient.get(uri, headers: headers);
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
         throw Exception(
           'Échec du chargement des données: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Erreur lors de la connexion à l\'API: $e');
+    }
+  }
+
+  // Méthode spécifique pour récupérer les catégories avec stats
+  static Future<List<dynamic>> getCategories() async {
+    try {
+      final response = await httpClient.get(
+        Uri.parse('$baseUrl/categories'),
+        headers: headers,
+      );
+
+      print('Categories response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+          'Échec du chargement des catégories: ${response.statusCode}',
         );
       }
     } catch (e) {

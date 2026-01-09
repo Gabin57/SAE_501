@@ -633,6 +633,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         'description':
             'Panneau détecté automatiquement avec confiance ${(detection.confidence * 100).toStringAsFixed(1)}%',
         'type': 'detection_automatique',
+        'categorie': detection.label, // Add category using detection label
         'source_url':
             'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
       };

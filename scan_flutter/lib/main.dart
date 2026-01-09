@@ -48,7 +48,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Scan de panneaux',
+      title: 'Sign Scan',
       restorationScopeId: 'app',
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
@@ -57,7 +57,7 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('fr', '')],
-      onGenerateTitle: (BuildContext context) => 'Scan de panneaux',
+      onGenerateTitle: (BuildContext context) => 'Sign Scan',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,

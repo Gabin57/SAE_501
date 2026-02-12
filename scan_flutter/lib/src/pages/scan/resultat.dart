@@ -42,12 +42,15 @@ class ResultatPage extends StatefulWidget {
   State<ResultatPage> createState() => _ResultatPageState();
 }
 
+// ... (imports remain the same)
+
 class _ResultatPageState extends State<ResultatPage> {
   late int id;
   late String database;
   bool _isLoading = true;
   bool _showActions = true;
   Map<String, dynamic>? _panneauData;
+  String? _scannerName; // Variable pour stocker le nom du scanneur
 
   // Pending scan fields
   bool _isPendingScan = false;
@@ -57,20 +60,21 @@ class _ResultatPageState extends State<ResultatPage> {
 
   @override
   void didChangeDependencies() {
+    // ... (unchanged)
     super.didChangeDependencies();
 
     final args = ModalRoute.of(context)?.settings.arguments;
 
     if (args is PendingScanArguments) {
-      // Pending scan mode - awaiting user confirmation
+      // ... (unchanged)
       _isPendingScan = true;
       _pendingDetection = args.detection;
       _pendingImageFile = args.imageFile;
       _pendingImageBytes = args.imageBytes;
-      _showActions = true; // Always show buttons for pending scans
+      _showActions = true;
       _buildPendingPanneauData();
     } else if (args is ResultatArguments) {
-      // View mode - existing panel from database
+      // ... (unchanged)
       _isPendingScan = false;
       id = args.id;
       database = args.database;
@@ -88,18 +92,25 @@ class _ResultatPageState extends State<ResultatPage> {
       // Get all panels and search for matching name
       final allPanels = await DAO.getAll('panneaux');
 
-      // Find panel with same name but not auto-detected
+      // Find panel with same name but not auto-detected (Case Insensitive)
       final realPanel = allPanels.firstWhere(
         (p) =>
-            p['name'] == _pendingDetection!.label &&
+            (p['name'] ?? '').toString().toLowerCase() ==
+                _pendingDetection!.label.toLowerCase() &&
             p['type'] != 'detection_automatique',
         orElse: () => null,
       );
 
       String description;
+      String name = _pendingDetection!.label; // Default to detected label
+
       if (realPanel != null) {
-        print('✅ Found real panel description');
+        print('✅ Found real panel description for: ${realPanel['name']}');
         description = realPanel['description'];
+        name = realPanel['name']; // Use the official name from database
+      } else if (_pendingDetection!.label == 'Inconnue') {
+        description =
+            'Aucun panneau n\'a été détecté dans l\'image. Cette mesure a été classée comme "Inconnue".';
       } else {
         print(
           '⚠️ No matching panel found in database, using auto-generated description',
@@ -113,7 +124,7 @@ class _ResultatPageState extends State<ResultatPage> {
 
       setState(() {
         _panneauData = {
-          'name': _pendingDetection!.label,
+          'name': name, // Use improved name
           'description': description,
           'type': 'detection_automatique',
           'confidence': _pendingDetection!.confidence,
@@ -144,33 +155,25 @@ class _ResultatPageState extends State<ResultatPage> {
       final data = await DAO.getById(database, id);
       if (!mounted) return;
 
-      // If this is an auto-detected panel, fetch the real description from database
+      // ... (auto-detection logic remains the same)
       if (data['type'] == 'detection_automatique' && data['name'] != null) {
-        // First, extract and save the confidence from original description
+        // ... (existing logic to fetch real description)
         final originalDescription = data['description'] as String?;
         if (originalDescription != null) {
-          // Utiliser une expression régulière plus permissive pour trouver la confiance
-          // Cherche "93.0% de confiance" ou "confiance 93.0%"
           final regex = RegExp(
             r'(\d+\.?\d*)%\s+de\s+confiance|confiance\s+(\d+\.?\d*)%',
             caseSensitive: false,
           );
           final match = regex.firstMatch(originalDescription);
           if (match != null) {
-            // Le groupe 1 est pour le premier motif, le groupe 2 pour le second
             final valString = match.group(1) ?? match.group(2) ?? '100';
-            // Fix: Store as decimal (0.94) not percentage (94.0) because _getConfidence multiplies by 100
             data['confidence'] = (double.tryParse(valString) ?? 100.0) / 100.0;
           }
         }
 
         try {
-          print('🔍 Searching for real panel description for: ${data['name']}');
-
-          // Get all panels and search for matching name
+          // ... (existing logic to find real panel)
           final allPanels = await DAO.getAll('panneaux');
-
-          // Find panel with same name but not auto-detected
           final realPanel = allPanels.firstWhere(
             (p) =>
                 p['name'] == data['name'] &&
@@ -179,37 +182,93 @@ class _ResultatPageState extends State<ResultatPage> {
           );
 
           if (realPanel != null) {
-            print('✅ Found real panel description');
-            // Replace auto-generated description with real one
             data['description'] = realPanel['description'];
-            // Save real panel image URL as fallback if user's image fails to load
             if (realPanel['image_url'] != null &&
                 realPanel['image_url'].toString().isNotEmpty) {
               data['fallback_image_url'] = realPanel['image_url'];
             }
-          } else {
-            print('⚠️ No matching panel found in database');
           }
         } catch (e) {
           print('❌ Error fetching real panel description: $e');
         }
       }
 
-      // Construct image URL from image_path if needed
+      // ... (image URL construction logic remains the same)
       if (data['image_path'] != null &&
           (data['image_url'] == null || data['image_url'].toString().isEmpty)) {
         data['image_url'] =
             'http://51.38.64.145:5001/images/${data['image_path']}';
       }
 
+      // NOUVEAU : Récupérer le nom de l'utilisateur qui a scanné ce panneau
+      String? scannerName;
+      try {
+        // 1. Récupérer les liaisons
+        final liaisons = await DAO.getAll('liaisons_panneaux');
+
+        // 2. Trouver la liaison pour ce panneau
+        print(
+          '🔍 Looking for liaison for panel ID: $id (Runtime type: ${id.runtimeType})',
+        );
+
+        final liaison = liaisons.firstWhere((l) {
+          final lId = l['id_panneau'];
+          // Robust comparison handling both String and Int
+          return lId.toString() == id.toString();
+        }, orElse: () => null);
+
+        print('📝 Liaison found: $liaison');
+
+        if (liaison != null) {
+          final userId = liaison['id_compte'];
+          print('👤 User ID found in liaison: $userId');
+
+          // 3. Récupérer les infos de l'utilisateur
+          // Use getAll instead of getById to avoid potential issue with 'num' vs 'id' column on backend
+          try {
+            final accounts = await DAO.getAll('comptes');
+            print('👥 Loaded ${accounts.length} accounts');
+
+            final user = accounts.firstWhere((u) {
+              final uId = u['num'] ?? u['id'];
+              // Handle string/int comparison
+              return uId.toString() == userId.toString();
+            }, orElse: () => null);
+
+            if (user != null) {
+              print('✅ User found: ${user['identifiant']}');
+              scannerName = user['identifiant'];
+            } else {
+              print('❌ User not found in accounts list for ID: $userId');
+            }
+          } catch (e) {
+            print('❌ Error fetching accounts: $e');
+            // Fallback try getById just in case
+            try {
+              final user = await DAO.getById('comptes', userId);
+              if (user != null) scannerName = user['identifiant'];
+            } catch (_) {}
+          }
+        } else {
+          print('⚠️ No liaison found for this panel.');
+          // If no liaison found, check if it's a user-generated panel
+          // Seeded panels are 'liste_des_PANNEAUX', user scans are 'detection_automatique'
+          if (data['type'] == 'detection_automatique') {
+            scannerName = 'Déconnecté';
+          }
+        }
+      } catch (e) {
+        print('Warning: Could not fetch scanner name: $e');
+      }
+
       setState(() {
         _panneauData = data;
+        _scannerName = scannerName;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
-      // Fallback to mock data if API fails
       setState(() {
         _panneauData = {
           'name': 'Image $id',
@@ -241,11 +300,11 @@ class _ResultatPageState extends State<ResultatPage> {
 
         // Create panel
         final panneauData = {
-          'name': _pendingDetection!.label,
+          'name': _panneauData!['name'],
           'description': _panneauData!['description'],
           'type': 'detection_automatique',
           'categorie':
-              _pendingDetection!.label, // Add category using detection label
+              _panneauData!['name'], // Add category using consistent name
           'source_url':
               'https://fr.wikibooks.org/wiki/Code_de_la_route/Liste_des_panneaux',
         };
@@ -430,9 +489,7 @@ class _ResultatPageState extends State<ResultatPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Different title based on context:
-    // - From home (showActions=false): Show panel name
-    // - After scan (showActions=true): Show "Nouveau Panneau"
+    // ... (appBarTitle logic remains the same)
     final String appBarTitle = _isLoading
         ? 'Chargement...'
         : (_showActions
@@ -444,13 +501,13 @@ class _ResultatPageState extends State<ResultatPage> {
       appBar: CustomAppBar(
         title: appBarTitle,
         centerTitle: true,
-        showProfileIcon: _showActions, // Show profile icon only after scan
+        showProfileIcon: _showActions,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Image section - WHITE Background (Flex 4)
+                // ... (Image section remains the same)
                 Expanded(
                   flex: 4,
                   child: Container(
@@ -476,9 +533,8 @@ class _ResultatPageState extends State<ResultatPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Show name + percentage after scan, only percentage from home
+                        // ... (Title/Percentage row remains the same)
                         if (_showActions)
-                          // After scan: Show panel name + percentage
                           Row(
                             children: [
                               Expanded(
@@ -502,10 +558,43 @@ class _ResultatPageState extends State<ResultatPage> {
                             ],
                           )
                         else
-                          // From home: Only percentage (name is in AppBar)
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment
+                                .spaceBetween, // Changed to SpaceBetween to fit both
                             children: [
+                              // Afficher le nom du scanneur si disponible
+                              if (_scannerName != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.person_outline,
+                                        size: 16,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Scanné par $_scannerName',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                const SizedBox(), // Spacer if no name
+
                               Text(
                                 '${_getConfidence().toStringAsFixed(0)}%',
                                 style: TextStyle(
@@ -519,7 +608,7 @@ class _ResultatPageState extends State<ResultatPage> {
 
                         const SizedBox(height: 10),
 
-                        // Description - Expanded to fill available space
+                        // ... (Description section remains the same)
                         Expanded(
                           child: SingleChildScrollView(
                             child: Column(
@@ -540,7 +629,7 @@ class _ResultatPageState extends State<ResultatPage> {
 
                         const SizedBox(height: 20),
 
-                        // Action buttons - Only show if _showActions is true
+                        // ... (Action buttons remain the same)
                         if (_showActions)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,

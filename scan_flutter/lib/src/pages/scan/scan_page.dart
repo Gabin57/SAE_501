@@ -403,19 +403,15 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       print('📊 [SCAN] Détections reçues: ${detections.length}');
 
       if (detections.isEmpty) {
-        print('⚠️ [SCAN] Aucun panneau détecté');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Aucun panneau détecté dans l\'image. Essayez avec une autre image ou assurez-vous que le panneau est bien visible.',
-              ),
-              duration: Duration(seconds: 4),
-            ),
-          );
-          setState(() => _isLoading = false);
-        }
-        return;
+        print('⚠️ [SCAN] Aucun panneau détecté -> Force "Inconnue"');
+        // Create a dummy detection for "Inconnue"
+        detections = [
+          DetectionResult(
+            label: 'Inconnue',
+            confidence: 0.0,
+            box: {'x_min': 0, 'y_min': 0, 'x_max': 0, 'y_max': 0},
+          ),
+        ];
       }
 
       // Prendre la première détection (la plus confiante)
@@ -496,19 +492,15 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       print('📊 [SCAN-WEB] Détections reçues: ${detections.length}');
 
       if (detections.isEmpty) {
-        print('⚠️ [SCAN-WEB] Aucun panneau détecté');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Aucun panneau détecté dans l\'image. Essayez avec une autre image ou assurez-vous que le panneau est bien visible.',
-              ),
-              duration: Duration(seconds: 4),
-            ),
-          );
-          setState(() => _isLoading = false);
-        }
-        return;
+        print('⚠️ [SCAN-WEB] Aucun panneau détecté -> Force "Inconnue"');
+        // Create a dummy detection for "Inconnue"
+        detections = [
+          DetectionResult(
+            label: 'Inconnue',
+            confidence: 0.0,
+            box: {'x_min': 0, 'y_min': 0, 'x_max': 0, 'y_max': 0},
+          ),
+        ];
       }
 
       // Prendre la première détection (la plus confiante)

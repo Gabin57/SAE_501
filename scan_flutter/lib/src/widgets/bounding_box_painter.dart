@@ -11,32 +11,15 @@ class BoundingBoxPainter extends CustomPainter {
     if (detections.isEmpty) return;
 
     final paint = Paint()
-      ..color = Colors.green
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0;
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
 
     final textPaint = TextPainter(textDirection: TextDirection.ltr);
 
-    // Scale factors (assuming input image was resized or different aspect ratio)
-    // For now, we assume the boxes are normalized or in the same coordinate space as the canvas
-    // Or we rely on the fact that CameraPreview fills the screen or aspect ratio is maintained.
-    // If boxes are absolute coordinates from the image (e.g. 640x640), we need to scale them
-    // to the canvas size.
-    // However, on Web, CameraPreview often matches the resolution.
-    // Let's assume for now that we might need to handle scaling if the camera resolution differs from canvas size.
-    // But typically ObjectDetectionService returns boxes relative to the image size.
-    // Since we don't know the exact image size here without more context,
-    // let's assume the canvas size matches the image stream size for now,
-    // or we might need to pass the image size.
-
-    // For simplicity in this first iteration:
-    // We'll iterate assuming coordinates match. If they are off, we'll need to adjust.
-    // Note: The detection service likely returns absolute coordinates based on the image size sent.
-
     for (final detection in detections) {
       final box = detection.box;
-
-      // Draw rect
       final rect = Rect.fromLTRB(
         (box['x1'] as num).toDouble(),
         (box['y1'] as num).toDouble(),
@@ -44,7 +27,57 @@ class BoundingBoxPainter extends CustomPainter {
         (box['y2'] as num).toDouble(),
       );
 
-      canvas.drawRect(rect, paint);
+      // Draw rounded corners (brackets)
+      final double cornerLength = 20.0;
+      final double cornerRadius = 12.0;
+
+      final Path path = Path();
+
+      // Top Left
+      path.moveTo(rect.left + cornerLength, rect.top);
+      path.lineTo(rect.left + cornerRadius, rect.top);
+      path.quadraticBezierTo(
+        rect.left,
+        rect.top,
+        rect.left,
+        rect.top + cornerRadius,
+      );
+      path.lineTo(rect.left, rect.top + cornerLength);
+
+      // Top Right
+      path.moveTo(rect.right - cornerLength, rect.top);
+      path.lineTo(rect.right - cornerRadius, rect.top);
+      path.quadraticBezierTo(
+        rect.right,
+        rect.top,
+        rect.right,
+        rect.top + cornerRadius,
+      );
+      path.lineTo(rect.right, rect.top + cornerLength);
+
+      // Bottom Right
+      path.moveTo(rect.right - cornerLength, rect.bottom);
+      path.lineTo(rect.right - cornerRadius, rect.bottom);
+      path.quadraticBezierTo(
+        rect.right,
+        rect.bottom,
+        rect.right,
+        rect.bottom - cornerRadius,
+      );
+      path.lineTo(rect.right, rect.bottom - cornerLength);
+
+      // Bottom Left
+      path.moveTo(rect.left + cornerLength, rect.bottom);
+      path.lineTo(rect.left + cornerRadius, rect.bottom);
+      path.quadraticBezierTo(
+        rect.left,
+        rect.bottom,
+        rect.left,
+        rect.bottom - cornerRadius,
+      );
+      path.lineTo(rect.left, rect.bottom - cornerLength);
+
+      canvas.drawPath(path, paint);
 
       // Draw label background
       final text =
@@ -52,7 +85,7 @@ class BoundingBoxPainter extends CustomPainter {
       textPaint.text = TextSpan(
         text: text,
         style: const TextStyle(
-          color: Colors.white,
+          color: Colors.black, // Text color changed to black for contrast
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -61,16 +94,20 @@ class BoundingBoxPainter extends CustomPainter {
 
       final textBackground = Rect.fromLTWH(
         rect.left,
-        rect.top - textPaint.height - 4,
-        textPaint.width + 8,
-        textPaint.height + 4,
+        rect.top - textPaint.height - 8,
+        textPaint.width + 16,
+        textPaint.height + 8,
       );
 
-      canvas.drawRect(textBackground, Paint()..color = Colors.green);
+      // Draw white rounded background for text
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(textBackground, const Radius.circular(8)),
+        Paint()..color = Colors.white,
+      );
 
       textPaint.paint(
         canvas,
-        Offset(rect.left + 4, rect.top - textPaint.height - 2),
+        Offset(rect.left + 8, rect.top - textPaint.height - 4),
       );
     }
   }
